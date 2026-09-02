@@ -1,0 +1,41 @@
+# Pacotes Python que o Studio administra (AUD-10). Cada um vira um venv em
+# engines/python-venv/<id>/ criado pelo uv portátil, com um servidor HTTP em engines/python/<id>/server.py.
+# Requisitos fixados: mudar de versão é mudar este arquivo, não o código.
+version: 1
+packages:
+  - id: demo
+    name: Eco (teste do runner)
+    description: Sem dependências — prova que o runner Python funciona nesta máquina.
+    requirements: []
+
+  - id: tts-clone
+    name: Clonagem de voz (Chatterbox · XTTS-v2 · F5-TTS)
+    description: Um servidor para os três motores; o modelo é escolhido por chamada.
+    python: "3.12"
+    license: mit/cc-by-nc-4.0
+    nonCommercial: true
+    extraIndexUrl: https://download.pytorch.org/whl/cu124
+    requirements:
+      - torch==2.5.1
+      - torchaudio==2.5.1
+      - soundfile==0.12.1
+      - numpy==1.26.4
+      - chatterbox-tts==0.1.2
+      - TTS==0.22.0
+      - f5-tts==1.1.4
+
+  - id: music
+    name: Música (ACE-Step · MusicGen · Stable Audio)
+    description: Geração de música e efeitos; pesado, roda com offload em 6 GB.
+    python: "3.12"
+    license: apache-2.0/cc-by-nc-4.0
+    nonCommercial: true
+    extraIndexUrl: https://download.pytorch.org/whl/cu124
+    requirements:
+      - torch==2.5.1
+      - torchaudio==2.5.1
+      - transformers==4.46.3
+      - diffusers==0.31.0
+      - accelerate==1.1.1
+      - soundfile==0.12.1
+      - numpy==1.26.4

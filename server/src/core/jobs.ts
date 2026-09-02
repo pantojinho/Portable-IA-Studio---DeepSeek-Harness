@@ -83,6 +83,13 @@ export class JobManager {
     }
   }
 
+  /** CORE-02: config changes (downloads.parallelFiles) apply without restarting. */
+  setLimit(kind: string, n: number): void {
+    if (!Number.isInteger(n) || n < 1) return;
+    this.limits[kind] = n;
+    queueMicrotask(() => this.pump(kind));
+  }
+
   private limitFor(kind: string): number { return this.limits[kind] ?? this.limits.default ?? 2; }
 
   private pump(kind: string): void {

@@ -1,10 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import YAML from "yaml";
 import type { Paths } from "../core/paths.js";
 import type { JobContext } from "../core/jobs.js";
 import { osArch, platform, type Backend } from "../core/system.js";
+import { extractArchive } from "../core/archive.js";
 import { downloadFile } from "../models/downloader.js";
 import { globToRegExp } from "../models/hf.js";
 import { walk } from "../models/registry.js";
@@ -166,10 +166,5 @@ export class EngineInstaller {
 
 function readText(p: string): string | null { try { return fs.readFileSync(p, "utf8").trim(); } catch { return null; } }
 
-/** tar handles .zip, .tar.gz, .tar.xz, .tar.bz2 on Windows 10+ (bsdtar), macOS and Linux. */
-export function extract(archive: string, into: string): void {
-  fs.mkdirSync(into, { recursive: true });
-  const tar = platform() === "win" ? path.join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe") : "tar";
-  const r = spawnSync(tar, ["-xf", archive, "-C", into], { stdio: "pipe", windowsHide: true });
-  if (r.status !== 0) throw new Error(`falha ao extrair ${path.basename(archive)}: ${r.stderr?.toString().slice(0, 300)}`);
-}
+/** Kept for callers that import it from here; the implementation lives in core/archive.ts (MOD-08). */
+export const extract = extractArchive;

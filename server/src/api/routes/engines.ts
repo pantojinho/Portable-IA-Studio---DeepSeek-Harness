@@ -25,6 +25,15 @@ export function enginesRoutes(ctx: StudioContext): Hono {
   app.post("/instances/:id/stop", async (c) => { await svc.supervisor.stop(decodeURIComponent(c.req.param("id"))); return c.json({ ok: true }); });
   app.post("/stop-all", async (c) => { await svc.supervisor.stopAll(); return c.json({ ok: true }); });
 
+  // ENG-12: configurações por modelo (contexto, camadas na GPU, threads, cache)
+  app.get("/model-settings", (c) => c.json({ settings: svc.settings.all() }));
+  app.put("/model-settings/:model", async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as Record<string, unknown>;
+    const id = decodeURIComponent(c.req.param("model"));
+    return c.json({ model: id, settings: svc.settings.set(id, body), hint: "Vale no próximo start do modelo." });
+  });
+  app.delete("/model-settings/:model", (c) => { svc.settings.clear(decodeURIComponent(c.req.param("model"))); return c.json({ ok: true }); });
+
   app.get("/providers", (c) => c.json({ providers: Object.entries(ctx.providers.all()).map(([id, p]) => ({ id, ...p, hasKey: !!ctx.providers.key(id) })) }));
   app.put("/providers/:id/key", async (c) => { const b = (await c.req.json().catch(() => ({}))) as { key?: string | null }; ctx.providers.setKey(c.req.param("id"), b.key ?? null); return c.json({ ok: true, hasKey: !!ctx.providers.key(c.req.param("id")) }); });
   return app;

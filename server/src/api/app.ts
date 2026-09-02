@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type MiddlewareHandler } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import fs from "node:fs";
@@ -7,6 +7,8 @@ import type { StudioContext } from "../core/context.js";
 import { bus } from "../core/events.js";
 import { liveStats, systemInfo } from "../core/system.js";
 import { logger } from "../core/log.js";
+import { addApiKey, fingerprint, keyMatches, RateLimiter, readApiKeys, removeApiKey } from "../core/auth.js";
+import { applyConfigPatch, EDITABLE, saveConfig } from "../core/config.js";
 import { modelsRoutes } from "./routes/models.js";
 import { plannedRoutes } from "./routes/planned.js";
 import { enginesRoutes } from "./routes/engines.js";
@@ -14,6 +16,9 @@ import { v1Routes } from "./routes/v1.js";
 import { imagesRoutes } from "./routes/images.js";
 import { audioRoutes } from "./routes/audio.js";
 import { agentRoutes } from "./routes/agent.js";
+import { projectsRoutes, memoryRoutes } from "./routes/projects.js";
+import { meetingsRoutes } from "./routes/meetings.js";
+import { mcpRoutes } from "./routes/mcp.js";
 
 const log = logger("http");
 
@@ -29,13 +34,45 @@ export function createApp(ctx: StudioContext): Hono {
   app.use("*", cors({ origin: (o) => (ctx.config.server.corsOrigins.length === 0 ? o || "*" : ctx.config.server.corsOrigins.includes(o) ? o : "") }));
 
   // Optional API key: protects /api and /v1, never the static UI (the UI sends the key itself).
-  app.use("/api/*", authGuard(ctx));
-  app.use("/v1/*", authGuard(ctx));
+  const limiter = new RateLimiter(() => ctx.config.server.rateLimitPerMinute);
+  app.use("/api/*", authGuard(ctx, limiter));
+  app.use("/v1/*", authGuard(ctx, limiter));
+  app.use("/mcp", authGuard(ctx, limiter));
+  app.use("/mcp/*", authGuard(ctx, limiter));
 
   app.get("/api/v1/health", (c) => c.json({ ok: true, version: ctx.version, uptimeSec: Math.round((Date.now() - ctx.startedAt) / 1000) }));
   app.get("/api/v1/system", async (c) => c.json(await systemInfo(ctx.paths.root)));
   app.get("/api/v1/system/live", async (c) => c.json(await liveStats()));
-  app.get("/api/v1/config", (c) => c.json(redactConfig(ctx)));
+  app.get("/api/v1/config", (c) => c.json({ config: redactConfig(ctx), editable: Object.keys(EDITABLE) }));
+
+  // CORE-02: partial update with validation; what can be applied hot is applied hot.
+  app.put("/api/v1/config", async (c) => {
+    let patch: unknown;
+    try { patch = await c.req.json(); } catch { return c.json({ error: "corpo JSON inválido" }, 400); }
+    const r = applyConfigPatch(ctx.config, patch);
+    if (r.errors.length) return c.json({ error: r.errors[0]!, errors: r.errors }, 422);
+    Object.assign(ctx.config, r.config);
+    saveConfig(ctx.paths, ctx.config);
+    ctx.jobs.setLimit("download", ctx.config.downloads.parallelFiles);
+    log.info(`config atualizada: ${r.changed.join(", ") || "nada mudou"}`);
+    return c.json({ ok: true, changed: r.changed, needsRestart: r.needsRestart, config: redactConfig(ctx) });
+  });
+
+  // API-01: chaves de acesso (nunca devolvidas inteiras depois de criadas).
+  app.get("/api/v1/config/api-keys", (c) => c.json({
+    keys: readApiKeys(ctx.paths, ctx.config).map((k) => fingerprint(k)),
+    required: !isLoopbackHost(ctx.config.server.host),
+  }));
+  app.post("/api/v1/config/api-key", async (c) => {
+    const body = await c.req.json().catch(() => ({})) as { key?: string };
+    const key = addApiKey(ctx.paths, body.key);
+    return c.json({ key, warning: "Guarde agora: esta é a única vez que a chave aparece inteira." }, 201);
+  });
+  app.delete("/api/v1/config/api-key", async (c) => {
+    const body = await c.req.json().catch(() => ({})) as { key?: string };
+    if (!body.key) return c.json({ error: "informe 'key'" }, 400);
+    return removeApiKey(ctx.paths, body.key) ? c.json({ ok: true }) : c.json({ error: "chave não encontrada" }, 404);
+  });
 
   app.route("/api/v1/models", modelsRoutes(ctx));
   app.route("/api/v1/engines", enginesRoutes(ctx));
@@ -44,12 +81,32 @@ export function createApp(ctx: StudioContext): Hono {
   app.route("/api/v1/generate", img.native);
   app.route("/v1/images", img.openai);
   app.route("/api/v1/outputs", img.outputs);
-  app.route("/v1/audio", audioRoutes(ctx));
+  const audio = audioRoutes(ctx);
+  app.route("/v1/audio", audio.openai);
+  app.route("/api/v1/voices", audio.voices);
+  app.route("/api/v1/audio", audio.native);
   app.route("/api/v1/agent", agentRoutes(ctx));
+  const docs = projectsRoutes(ctx);
+  app.route("/api/v1/projects", docs.projects);
+  app.route("/api/v1/doctypes", docs.doctypes);
+  app.route("/api/v1/ocr", docs.ocr);
+  app.route("/api/v1/memory", memoryRoutes(ctx));
+  app.route("/api/v1/meetings", meetingsRoutes(ctx));
+  app.route("/mcp", mcpRoutes(ctx));
   app.route("/", plannedRoutes());
 
-  app.get("/api/v1/jobs", (c) => c.json({ jobs: ctx.jobs.list() }));
-  app.get("/api/v1/jobs/:id", (c) => { const j = ctx.jobs.get(c.req.param("id")); return j ? c.json(j) : c.json({ error: "job não encontrado" }, 404); });
+  app.get("/api/v1/jobs", (c) => {
+    const live = ctx.jobs.list();
+    if (c.req.query("history") !== "1") return c.json({ jobs: live });
+    const limit = Math.min(500, Number(c.req.query("limit") ?? 100) || 100);
+    const seen = new Set(live.map((j) => j.id));
+    const history = ctx.jobStore.history(limit, c.req.query("kind")).filter((j) => !seen.has(j.id));
+    return c.json({ jobs: [...live, ...history].sort((a, b) => b.createdAt - a.createdAt).slice(0, limit) });
+  });
+  app.get("/api/v1/jobs/:id", (c) => {
+    const j = ctx.jobs.get(c.req.param("id")) ?? ctx.jobStore.get(c.req.param("id"));
+    return j ? c.json(j) : c.json({ error: "job não encontrado" }, 404);
+  });
   app.post("/api/v1/jobs/:id/cancel", (c) => c.json({ cancelled: ctx.jobs.cancel(c.req.param("id")) }));
 
   // One event stream for everything: jobs, downloads, engines, system.
@@ -62,6 +119,12 @@ export function createApp(ctx: StudioContext): Hono {
       stream.onAbort(() => { clearInterval(ping); unsub.forEach((u) => u()); });
       await new Promise<void>((resolve) => stream.onAbort(resolve));
     }));
+
+  // Uma rota /api ou /v1 que não existe deve dizer isso em JSON — devolver o index.html
+  // deixava clientes (e o próprio agente) recebendo HTML no lugar de um erro.
+  const notFound = (c: import("hono").Context) => c.json({ error: `rota não encontrada: ${c.req.method} ${c.req.path}` }, 404);
+  app.all("/api/*", notFound);
+  app.all("/v1/*", notFound);
 
   // Static UI (web/dist) with SPA fallback.
   app.get("/*", async (c) => {
@@ -82,12 +145,20 @@ export function createApp(ctx: StudioContext): Hono {
   return app;
 }
 
-function authGuard(ctx: StudioContext) {
-  return async (c: { req: { header: (n: string) => string | undefined; query: (n: string) => string | undefined }; json: (b: unknown, s: 401) => Response }, next: () => Promise<void>) => {
-    const key = ctx.config.server.apiKey;
-    if (!key) return next();
-    const given = c.req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? c.req.header("x-api-key") ?? c.req.query("api_key");
-    if (given !== key) return c.json({ error: { message: "API key inválida ou ausente.", type: "authentication_error" } }, 401);
+function isLoopbackHost(host: string): boolean { return host === "127.0.0.1" || host === "::1" || host === "localhost"; }
+
+function authGuard(ctx: StudioContext, limiter: RateLimiter): MiddlewareHandler {
+  return async (c, next) => {
+    const keys = readApiKeys(ctx.paths, ctx.config);
+    const given = c.req.header("authorization")?.replace(/^Bearer\s+/i, "") ?? c.req.header("x-api-key") ?? c.req.query("api_key") ?? "";
+    if (keys.length > 0 && !keyMatches(given, keys)) {
+      return c.json({ error: { message: "Chave de API inválida ou ausente. Envie 'Authorization: Bearer <chave>'.", type: "authentication_error" } }, 401);
+    }
+    const client = given ? fingerprint(given).sha256 : (c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || "local");
+    const wait = limiter.take(client);
+    if (wait !== null) {
+      return c.json({ error: { message: `Muitas requisições. Tente de novo em ${wait} s.`, type: "rate_limit_error" } }, 429, { "retry-after": String(wait) });
+    }
     return next();
   };
 }

@@ -44,9 +44,14 @@ pre{background:var(--surface2);border:1px solid var(--line);border-radius:6px;pa
   <h1>AI Studio</h1>
   <button data-t="chat" class="on">Chat</button>
   <button data-t="img">Imagens</button>
+  <button data-t="video">Vídeo</button>
+  <button data-t="docs">Projetos</button>
+  <button data-t="audio">Áudio</button>
+  <button data-t="meet">Reuniões</button>
   <button data-t="models">Modelos</button>
   <button data-t="engines">Motores &amp; APIs</button>
   <button data-t="agent">Agente</button>
+  <button data-t="cfg">Configurações</button>
   <button data-t="jobs">Trabalhos</button>
   <div class="mon" id="mon">…</div>
 </aside>
@@ -103,6 +108,118 @@ pre{background:var(--surface2);border:1px solid var(--line);border-radius:6px;pa
   <div class="card" style="padding:0;overflow:hidden;height:70vh"><iframe id="agFrame" style="width:100%;height:100%;border:0;display:none"></iframe><div id="agHint" class="sub" style="padding:16px">Inicie o agente para vê-lo aqui. Na primeira vez, em Settings → Models do dsh, o provedor "local" já aponta para este Studio.</div></div>
 </section>
 
+<section id="docs">
+  <h2>Projetos e documentos</h2><p class="sub">Um projeto é uma pasta com seus arquivos, o índice e a memória. PDF, Word, Excel, PowerPoint, e-mail, imagem e áudio entram; PDF escaneado vai para o OCR e áudio para a transcrição.</p>
+  <div class="card">
+    <div class="row"><select id="projSel" onchange="selectProject()"></select><button class="btn sec" onclick="loadProjects()">↻</button>
+      <input type="text" id="projName" placeholder="nome do projeto novo" style="flex:1"><button class="btn" onclick="newProject()">Criar</button>
+      <button class="btn sec danger" onclick="deleteProject()">Apagar</button></div>
+    <div id="projInfo" class="sub" style="margin:8px 0 0"></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>Documentos</b>
+      <div class="row"><input type="file" id="docFiles" multiple><button class="btn" onclick="addDocs()">Enviar</button><button class="btn sec" onclick="ingestProject()">Reprocessar</button></div></div>
+    <div id="srcList" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <b>Perguntar aos documentos</b><p class="sub">A resposta cita os trechos usados; clique na citação para ver o documento.</p>
+    <div class="row"><input type="text" id="askQ" placeholder="quais notas vencem este mês?" style="flex:1" onkeydown="if(event.key==='Enter')askDocs()"><select id="askModel"></select><button class="btn" onclick="askDocs()">Perguntar</button><button class="btn sec" onclick="searchDocs()">Só buscar</button></div>
+    <div id="askOut" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>Notas fiscais e outros tipos</b>
+      <div class="row"><select id="docType"><option value="">classificar sozinho</option></select><button class="btn" onclick="extractFields()">Extrair campos</button><button class="btn sec" onclick="validateFields()">Revalidar</button></div></div>
+    <div class="row" style="margin-top:8px"><input type="text" id="tablePath" placeholder="caminho da planilha (CSV/XLSX) para cruzar" style="flex:1"><button class="btn sec" onclick="crossCheck()">Cruzar</button></div>
+    <div id="fieldsOut" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>Fontes automáticas</b><button class="btn sec" onclick="loadConnectors()">↻</button></div>
+    <p class="sub">Uma pasta monitorada ou uma caixa de e-mail (somente leitura). Novos arquivos entram e são lidos sozinhos.</p>
+    <div class="row">
+      <select id="connType" onchange="connFields()"><option value="folder">pasta monitorada</option><option value="imap">e-mail (IMAP)</option></select>
+      <span id="connForm" class="row" style="flex:1"></span>
+      <button class="btn" onclick="saveConnector()">Adicionar</button></div>
+    <div id="connList" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>Memória do projeto</b><button class="btn sec" onclick="loadMemory()">↻</button></div>
+    <div class="row" style="margin-top:8px"><input type="text" id="memText" placeholder="lembrar que…" style="flex:1"><button class="btn sec" onclick="addMemory()">Anotar</button></div>
+    <div id="memList" style="margin-top:8px"></div>
+  </div>
+</section>
+
+<section id="audio">
+  <h2>Áudio</h2><p class="sub">Vozes instaladas (Piper, Kokoro, OuteTTS ou clonadas), transcrição de qualquer arquivo e música.</p>
+  <div class="card">
+    <b>Falar</b>
+    <textarea id="ttsText" placeholder="escreva o que a voz deve dizer"></textarea>
+    <div class="row" style="margin-top:8px"><select id="voiceSel"></select>
+      <select id="ttsFmt"><option>wav</option><option>mp3</option><option>ogg</option></select>
+      <label>velocidade <input type="number" id="ttsSpeed" value="1" step="0.1" style="width:70px"></label>
+      <button class="btn" onclick="speak()">Falar</button><button class="btn sec" onclick="loadVoices()">↻ vozes</button></div>
+    <div id="ttsOut" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><b>Vozes</b><span class="sub" style="margin:0">baixe pacotes na aba Modelos (recipe:piper-pt-br-faber, recipe:kokoro-82m)</span></div>
+    <div id="voiceList" style="margin-top:8px"></div>
+    <div class="row" style="margin-top:8px"><input type="text" id="cloneName" placeholder="nome da voz clonada"><input type="file" id="cloneFile" accept="audio/*"><button class="btn sec" onclick="cloneVoice()">Clonar de uma amostra</button></div>
+  </div>
+  <div class="card">
+    <b>Transcrever</b><p class="sub">Qualquer formato: o ffmpeg converte antes. Com diarização, cada fala ganha o falante.</p>
+    <div class="row"><input type="file" id="sttFile" accept="audio/*,video/*"><label><input type="checkbox" id="sttDia" checked> separar falantes</label>
+      <select id="sttFmt"><option value="json">texto</option><option value="srt">SRT</option><option value="vtt">VTT</option><option value="verbose_json">detalhado</option></select>
+      <button class="btn" onclick="transcribe()">Transcrever</button></div>
+    <div id="sttOut" style="margin-top:10px"></div>
+  </div>
+  <div class="card">
+    <b>Música</b><p class="sub">Roda num ambiente Python que o Studio instala sob demanda. Pesado: minutos por trecho.</p>
+    <div class="row"><input type="text" id="musicPrompt" placeholder="estilo, instrumentos, clima" style="flex:1">
+      <select id="musicEngine"><option value="musicgen">MusicGen</option><option value="stableaudio">Stable Audio</option><option value="acestep">ACE-Step</option></select>
+      <label>segundos <input type="number" id="musicDur" value="15" style="width:70px"></label><button class="btn" onclick="makeMusic()">Gerar</button></div>
+    <div id="pkgList" style="margin-top:10px"></div>
+  </div>
+</section>
+
+<section id="meet">
+  <h2>Reuniões</h2><p class="sub">Grava microfone e/ou som do sistema, transcreve enquanto acontece, separa falantes e resume no final.</p>
+  <div class="card">
+    <div class="row"><input type="text" id="meetTitle" placeholder="título da reunião" style="flex:1">
+      <label><input type="checkbox" id="meetMic" checked> microfone</label><label><input type="checkbox" id="meetSys"> som do sistema</label>
+      <select id="meetProject"><option value="">não enviar a um projeto</option></select>
+      <button class="btn" id="meetStart" onclick="startMeeting()">Gravar</button><button class="btn danger" id="meetStop" onclick="stopMeeting()" disabled>Parar e resumir</button></div>
+    <div id="meetDevices" class="sub" style="margin-top:8px"></div>
+  </div>
+  <div class="card"><div class="row" style="justify-content:space-between"><b>Transcrição ao vivo</b><span id="meetState" class="tag">parado</span></div><div class="msgs" id="meetLive" style="margin-top:8px"></div></div>
+  <div class="card"><div class="row" style="justify-content:space-between"><b>Reuniões gravadas</b><button class="btn sec" onclick="loadMeetings()">↻</button></div><div id="meetList" style="margin-top:8px"></div></div>
+</section>
+
+<section id="video">
+  <h2>Vídeo</h2><p class="sub">Wan 2.2 e LTX-2 pelo stable-diffusion.cpp; os quadros viram mp4 com o ffmpeg. Em 6 GB, use 512×512 e poucos quadros.</p>
+  <div class="card">
+    <textarea id="vidPrompt" placeholder="descreva a cena"></textarea>
+    <div class="row" style="margin-top:8px"><select id="vidModel"></select>
+      <label>L <input type="number" id="vidW" value="512" style="width:80px"></label><label>A <input type="number" id="vidH" value="512" style="width:80px"></label>
+      <label>quadros <input type="number" id="vidFrames" value="33" style="width:80px"></label><label>fps <input type="number" id="vidFps" value="16" style="width:70px"></label>
+      <button class="btn" onclick="genVideo()">Gerar</button></div>
+    <div id="vidStatus" class="sub" style="margin-top:8px"></div>
+  </div>
+  <div class="card"><div class="row" style="justify-content:space-between"><b>Vídeos</b><button class="btn sec" onclick="loadVideos()">↻</button></div><div class="gal" id="vidGal" style="margin-top:10px"></div></div>
+</section>
+
+<section id="cfg">
+  <h2>Configurações</h2><p class="sub">Vale na hora o que dá; o resto avisa que precisa reiniciar. O arquivo é <span class="mono">data/config.yaml</span>.</p>
+  <div class="card"><div class="row" style="justify-content:space-between"><b>Preferências</b><button class="btn sec" onclick="loadConfig()">↻</button></div><div id="cfgForm" style="margin-top:8px"></div></div>
+  <div class="card">
+    <b>Chaves de API</b><p class="sub">Sem chave, o Studio só aceita conexões desta máquina. Com chave, todo cliente precisa mandar <span class="mono">Authorization: Bearer</span>.</p>
+    <div class="row"><button class="btn sec" onclick="newKey()">Criar chave</button><span id="keyState" class="sub" style="margin:0"></span></div>
+    <div id="keyList" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
+    <b>Rodar sozinho ao ligar o computador</b>
+    <p class="sub">Pela linha de comando, dentro da pasta: <span class="mono">aistudio service install</span> (Windows: tarefa no logon · macOS: LaunchAgent · Linux: systemd --user). Confira com <span class="mono">aistudio service status</span>.</p>
+  </div>
+</section>
+
 <section id="jobs"><h2>Trabalhos</h2><p class="sub">Downloads, gerações e instalações. Progresso em tempo real por SSE.</p><div class="card jobs" id="jobList"></div></section>
 </main>
 
@@ -110,21 +227,25 @@ pre{background:var(--surface2);border:1px solid var(--line);border-radius:6px;pa
 const $=s=>document.querySelector(s);const api=(p,o)=>fetch(p,o).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error?.message||j.error||r.statusText);return j});
 const fmt=n=>!n?"?":n>=1e9?(n/1e9).toFixed(2)+" GB":n>=1e6?Math.round(n/1e6)+" MB":Math.round(n/1e3)+" KB";
 const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-document.querySelectorAll("aside button[data-t]").forEach(b=>b.onclick=()=>{document.querySelectorAll("aside button").forEach(x=>x.classList.remove("on"));b.classList.add("on");document.querySelectorAll("main section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));if(b.dataset.t==="img")loadGallery();if(b.dataset.t==="engines")loadEngines();if(b.dataset.t==="models"){loadLibrary();loadRecipes();loadTok()}if(b.dataset.t==="agent")agentState()});
+document.querySelectorAll("aside button[data-t]").forEach(b=>b.onclick=()=>{document.querySelectorAll("aside button").forEach(x=>x.classList.remove("on"));b.classList.add("on");document.querySelectorAll("main section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));if(b.dataset.t==="img")loadGallery();if(b.dataset.t==="engines")loadEngines();if(b.dataset.t==="models"){loadLibrary();loadRecipes();loadTok()}if(b.dataset.t==="agent")agentState();if(b.dataset.t==="docs")loadProjects();if(b.dataset.t==="audio")loadVoices();if(b.dataset.t==="meet")loadMeetings();if(b.dataset.t==="video")loadVideos();if(b.dataset.t==="cfg")loadConfig()});
 // agent
 async function agentState(){const s=await api("/api/v1/agent");$("#agState").textContent=s.status+(s.version?" · dsh "+s.version:"");$("#agState").className="tag "+(s.status==="ready"?"ok":s.status==="error"?"bad":"");$("#agInstall").style.display=s.status==="not-installed"?"":"none";$("#agErr").textContent=s.error||"";if(s.status==="ready"&&s.url){$("#agFrame").src=s.url;$("#agFrame").style.display="";$("#agHint").style.display="none";$("#agOpen").href=s.url;$("#agOpen").style.display=""}else{$("#agFrame").style.display="none";$("#agHint").style.display=""}}
 async function agentInstall(){const r=await api("/api/v1/agent/install",{method:"POST"});document.querySelector('[data-t=jobs]').click();onJob(r.job.id,j=>{if(j.status==="done")agentState()})}
 async function agentStart(){$("#agState").textContent="iniciando…";try{await api("/api/v1/agent/start",{method:"POST"})}catch(e){$("#agErr").textContent=e.message}agentState()}
 async function agentStop(){await api("/api/v1/agent/stop",{method:"POST"});agentState()}
-es.addEventListener("agent.status",()=>{if($("#agent").classList.contains("on"))agentState()});
 
 // monitor
 async function mon(){try{const s=await api("/api/v1/system/live");const g=s.gpus[0];$("#mon").innerHTML=`CPU ${Math.round(s.cpuLoad*100)}%<br>RAM ${(s.ramUsedMiB/1024).toFixed(1)}/${(s.ramMiB/1024).toFixed(0)} GB${g?`<br>VRAM ${(g.vramUsedMiB/1024).toFixed(1)}/${(g.vramMiB/1024).toFixed(0)} GB<br><span style="font-size:11px">${esc(g.name)}</span>`:""}`}catch{}}mon();setInterval(mon,4000);
 
 // jobs via SSE
-const jobs={};const es=new EventSource("/api/v1/events?topics=job,engine.status,agent.status");
+const jobs={};const es=new EventSource("/api/v1/events?topics=job,engine.status,agent.status,meeting.transcript,project.ingest");
 es.addEventListener("job",e=>{const j=JSON.parse(e.data);jobs[j.id]=j;renderJobs();(jobHooks[j.id]||[]).forEach(f=>f(j))});
 es.addEventListener("engine.status",e=>{const s=JSON.parse(e.data);if($("#engines").classList.contains("on"))loadEngines()});
+es.addEventListener("agent.status",()=>{if($("#agent").classList.contains("on"))agentState()});
+es.addEventListener("meeting.transcript",e=>{const d=JSON.parse(e.data);const box=$("#meetLive");if(!box)return;
+  for(const seg of d.segments)box.insertAdjacentHTML("beforeend",`<div class="msg a" style="max-width:100%"><span class="tag">${fmtClock(seg.start)}</span> ${seg.speaker?`<b>${esc(seg.speaker)}</b>: `:""}${esc(seg.text)}</div>`);
+  box.scrollTop=1e9});
+es.addEventListener("project.ingest",e=>{const d=JSON.parse(e.data);if($("#docs").classList.contains("on")&&d.projectId===curProj&&d.done===d.total)selectProject()});
 const jobHooks={};function onJob(id,f){(jobHooks[id]=jobHooks[id]||[]).push(f)}
 function renderJobs(){const l=Object.values(jobs).sort((a,b)=>b.createdAt-a.createdAt);$("#jobList").innerHTML=l.map(j=>`<div><span class="tag ${j.status==="done"?"ok":j.status==="failed"?"bad":j.status==="running"?"warn":""}">${j.status}</span> <b>${esc(j.title)}</b> <span class="mono">${esc(j.message)}</span>${j.status==="running"?` <button class="btn sec" style="padding:2px 8px" onclick="api('/api/v1/jobs/${j.id}/cancel',{method:'POST'})">cancelar</button><div class="bar"><i style="width:${Math.max(0,j.progress*100)}%"></i></div>`:""}${j.error?`<div class="err">${esc(j.error)}</div>`:""}</div>`).join("")||"<span class='sub'>nenhum trabalho ainda</span>"}
 api("/api/v1/jobs").then(r=>{r.jobs.forEach(j=>jobs[j.id]=j);renderJobs()});
@@ -165,6 +286,192 @@ async function saveKey(id){const v=$("#k-"+id).value;await api("/api/v1/engines/
 async function installEng(id){const r=await api("/api/v1/engines/"+id+"/install",{method:"POST"});document.querySelector('[data-t=jobs]').click();onJob(r.job.id,j=>{if(j.status==="done")loadEngines()})}
 async function adopt(){const r=await api("/api/v1/engines/adopt",{method:"POST"});alert(r.adopted.length+" motor(es) adotado(s)");loadEngines()}
 async function stopAll(){await api("/api/v1/engines/stop-all",{method:"POST"});loadEngines()}
+
+// ───────────────────────── projetos e documentos (DOC-01…DOC-09)
+let projects=[],curProj=null;
+async function loadProjects(){const r=await api("/api/v1/projects");projects=r.projects;const sel=$("#projSel");const cur=sel.value||curProj;
+  sel.innerHTML=projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name)} (${p.stats.sources})</option>`).join("")||"<option value=''>nenhum projeto</option>";
+  if(cur&&projects.some(p=>p.id===cur))sel.value=cur;curProj=sel.value||null;
+  $("#meetProject").innerHTML='<option value="">não enviar a um projeto</option>'+projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+  const dt=await api("/api/v1/doctypes");$("#docType").innerHTML='<option value="">classificar sozinho</option>'+dt.doctypes.map(d=>`<option value="${esc(d.id)}">${esc(d.name)}</option>`).join("");
+  const mods=await api("/v1/models").catch(()=>({data:[]}));$("#askModel").innerHTML='<option value="">modelo padrão</option>'+mods.data.filter(m=>!m.meta||m.meta.kind==="text").map(m=>`<option value="${esc(m.id)}">${esc(m.id)}</option>`).join("");
+  if(curProj)selectProject()}
+async function selectProject(){curProj=$("#projSel").value||null;if(!curProj){$("#srcList").innerHTML="";$("#projInfo").textContent="";return}
+  const r=await api("/api/v1/projects/"+encodeURIComponent(curProj));const p=r.project;
+  $("#projInfo").innerHTML=`${p.stats.sources} documento(s) · ${p.stats.chunks} trecho(s) · pasta <span class="mono">projects/${esc(p.id)}</span>${p.stats.lastIngestAt?` · última leitura ${new Date(p.stats.lastIngestAt).toLocaleString("pt-BR")}`:""}`;
+  renderSources(r.sources);loadMemory();loadConnectors()}
+function renderSources(list){$("#srcList").innerHTML=list.length?`<table><tr><th>estado</th><th>arquivo</th><th>tipo</th><th></th></tr>${list.map(s=>`<tr>
+  <td><span class="tag ${s.status==="done"?"ok":s.status==="failed"?"bad":"warn"}">${s.status}</span></td>
+  <td class="mono">${esc(s.name)}${s.pages?` <span class="sub">${s.pages} pág.</span>`:""}${s.error?`<div class="err" style="font-size:12px">${esc(s.error)}</div>`:""}${s.validation&&!s.validation.ok?`<div class="err" style="font-size:12px">${s.validation.issues.filter(i=>i.severity==="error").map(i=>esc(i.message)).join("<br>")}</div>`:""}</td>
+  <td>${s.docType?`<span class="tag">${esc(s.docType)}</span>`:""}</td>
+  <td><a class="btn sec" style="padding:2px 8px;text-decoration:none" href="/api/v1/projects/${encodeURIComponent(curProj)}/sources/${s.id}/file" target="_blank">abrir</a>
+      <button class="btn sec" style="padding:2px 8px" onclick="delSource('${s.id}')">remover</button></td></tr>`).join("")}</table>`
+  :"<span class='sub'>nenhum documento ainda — envie arquivos acima</span>"}
+async function newProject(){const name=$("#projName").value.trim();if(!name)return alert("dê um nome ao projeto");
+  const p=await api("/api/v1/projects",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name})});
+  $("#projName").value="";curProj=p.id;await loadProjects();$("#projSel").value=p.id;selectProject()}
+async function deleteProject(){if(!curProj)return;if(!confirm("Apagar o projeto "+curProj+"? A pasta vai para data/trash, nada é apagado de verdade."))return;
+  await api("/api/v1/projects/"+encodeURIComponent(curProj),{method:"DELETE"});curProj=null;loadProjects()}
+async function addDocs(){if(!curProj)return alert("escolha ou crie um projeto");const files=$("#docFiles").files;if(!files.length)return alert("escolha os arquivos");
+  const fd=new FormData();for(const f of files)fd.append("file",f);
+  const r=await fetch("/api/v1/projects/"+encodeURIComponent(curProj)+"/sources",{method:"POST",body:fd}).then(x=>x.json());
+  $("#docFiles").value="";if(r.job)onJob(r.job.id,j=>{if(j.status==="done"||j.status==="failed")selectProject()});selectProject()}
+async function ingestProject(){if(!curProj)return;const r=await api("/api/v1/projects/"+encodeURIComponent(curProj)+"/ingest",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({force:true})});
+  onJob(r.job.id,j=>{if(j.status==="done"||j.status==="failed")selectProject()})}
+async function delSource(id){if(!curProj)return;await api(`/api/v1/projects/${encodeURIComponent(curProj)}/sources/${id}`,{method:"DELETE"});selectProject()}
+async function askDocs(){if(!curProj)return alert("escolha um projeto");const q=$("#askQ").value.trim();if(!q)return;
+  $("#askOut").innerHTML="<span class='sub'>procurando nos documentos…</span>";
+  try{const a=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/ask`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question:q,model:$("#askModel").value||undefined})});
+    $("#askOut").innerHTML=`<div class="msg a" style="max-width:100%">${esc(a.text)}</div>${a.citations.length?`<div style="margin-top:8px"><b>Fontes</b>${a.citations.map((c,i)=>`<div class="sub" style="font-size:13px;margin-top:4px">[${i+1}] <b>${esc(c.name)}</b>${c.page?`, página ${c.page}`:""}<br>${esc(c.quote)}</div>`).join("")}</div>`:""}`}
+  catch(e){$("#askOut").innerHTML=`<div class="err">${esc(e.message)}</div>`}}
+async function searchDocs(){if(!curProj)return;const q=$("#askQ").value.trim();if(!q)return;
+  const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/search`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({query:q,k:8})});
+  $("#askOut").innerHTML=r.hits.length?r.hits.map((h,i)=>`<div class="sub" style="font-size:13px;margin-bottom:8px">[${i+1}] <b>${esc(h.source.name)}</b>${h.chunk.locator.page?`, página ${h.chunk.locator.page}`:""} <span class="tag">${h.score.toFixed(3)}</span><br>${esc(h.snippet)}</div>`).join(""):"<span class='sub'>nada encontrado</span>"}
+async function extractFields(){if(!curProj)return;const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/extract`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({docType:$("#docType").value||undefined,force:true})});
+  $("#fieldsOut").innerHTML="<span class='sub'>lendo os documentos… acompanhe em Trabalhos</span>";
+  onJob(r.job.id,j=>{if(j.status==="done"){renderFields(j.result);selectProject()}if(j.status==="failed")$("#fieldsOut").innerHTML=`<div class="err">${esc(j.error)}</div>`})}
+async function validateFields(){if(!curProj)return;const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/validate`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({})});renderFields({results:r.results})}
+function renderFields(res){const rows=(res&&res.results)||[];$("#fieldsOut").innerHTML=rows.length?`<table><tr><th>documento</th><th>tipo</th><th>campos</th><th>conferência</th></tr>${rows.map(r=>`<tr>
+  <td class="mono">${esc(r.name)}</td><td>${esc(r.docType||"—")}</td>
+  <td class="mono" style="font-size:12px">${esc(Object.entries(r.fields||{}).filter(([,v])=>typeof v!=="object").slice(0,6).map(([k,v])=>k+"="+v).join(" · "))}</td>
+  <td>${r.error?`<span class="tag bad">${esc(r.error)}</span>`:r.validation?(r.validation.ok?'<span class="tag ok">ok</span>':r.validation.issues.map(i=>`<div class="${i.severity==="error"?"err":"warn"}" style="font-size:12px">${esc(i.message)}</div>`).join("")):""}</td></tr>`).join("")}</table>`:"<span class='sub'>nada extraído ainda</span>"}
+async function crossCheck(){if(!curProj)return;const tablePath=$("#tablePath").value.trim();const docType=$("#docType").value;
+  if(!tablePath||!docType)return alert("informe a planilha e escolha o tipo de documento");
+  try{const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/crosscheck`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({tablePath,docType})});
+    $("#fieldsOut").innerHTML=`<div class="row"><span class="tag ok">${r.matched} conferem</span><span class="tag bad">${r.different} divergem</span><span class="tag warn">${r.missingInTable} sem linha na planilha</span><span class="tag warn">${r.missingInDocuments} sem documento</span></div>
+      <table style="margin-top:8px">${r.rows.filter(x=>!x.found||x.differences.length).map(x=>`<tr><td class="mono">${esc(x.key)}</td><td>${x.found?x.differences.map(d=>`${esc(d.column)}: documento <b>${esc(d.document)}</b> · planilha <b>${esc(d.table)}</b>`).join("<br>"):"não está na planilha"}</td></tr>`).join("")}</table>`}
+  catch(e){$("#fieldsOut").innerHTML=`<div class="err">${esc(e.message)}</div>`}}
+async function loadMemory(){if(!curProj)return;const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/memory`);
+  $("#memList").innerHTML=r.memory.length?r.memory.map(m=>`<div class="sub" style="font-size:13px;border-bottom:1px solid var(--line);padding:4px 0"><span class="tag">${m.kind}</span> ${esc(m.text)} <button class="btn sec" style="padding:1px 6px;font-size:11px" onclick="delMemory('${m.id}')">×</button></div>`).join(""):"<span class='sub'>a memória enche sozinha conforme os documentos são lidos</span>"}
+async function addMemory(){const text=$("#memText").value.trim();if(!text||!curProj)return;
+  await api(`/api/v1/projects/${encodeURIComponent(curProj)}/memory`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({text,kind:"user"})});$("#memText").value="";loadMemory()}
+async function delMemory(id){await api(`/api/v1/projects/${encodeURIComponent(curProj)}/memory/${id}`,{method:"DELETE"});loadMemory()}
+
+// ───────────────────────── conectores (DOC-08)
+function connFields(){const t=$("#connType").value;
+  $("#connForm").innerHTML=t==="folder"
+    ?`<input type="text" id="connPath" placeholder="caminho da pasta (ex.: C:\\Notas)" style="flex:1"><input type="text" id="connPattern" placeholder="filtro opcional (regex)" style="width:160px">`
+    :`<input type="text" id="connHost" placeholder="imap.servidor.com" style="width:190px"><input type="text" id="connUser" placeholder="usuário" style="width:170px">
+      <input type="password" id="connPass" placeholder="senha ou senha de app" style="width:170px"><input type="text" id="connFrom" placeholder="só de (opcional)" style="width:160px">`}
+async function loadConnectors(){if(!curProj)return;connFields();
+  const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/connectors`);
+  $("#connList").innerHTML=r.connectors.length?`<table>${r.connectors.map(c=>`<tr>
+    <td><span class="tag">${esc(c.type)}</span></td>
+    <td class="mono" style="font-size:12px">${esc(c.type==="folder"?String(c.config.path||""):`${c.config.user||""}@${c.config.host||""}`)}${c.lastSyncAt?`<br><span class="sub">última: ${new Date(c.lastSyncAt).toLocaleString("pt-BR")}</span>`:""}</td>
+    <td><button class="btn sec" onclick="syncConnector('${c.id}')">sincronizar</button><button class="btn sec" onclick="delConnector('${c.id}')">remover</button></td></tr>`).join("")}</table>`
+  :"<span class='sub'>nenhuma fonte automática</span>"}
+async function saveConnector(){if(!curProj)return alert("escolha um projeto");const type=$("#connType").value;
+  const config=type==="folder"?{path:$("#connPath").value.trim(),pattern:$("#connPattern").value.trim()||undefined}
+    :{host:$("#connHost").value.trim(),user:$("#connUser").value.trim(),password:$("#connPass").value,from:$("#connFrom").value.trim()||undefined,limit:50};
+  if(type==="folder"&&!config.path)return alert("informe a pasta");
+  if(type==="imap"&&(!config.host||!config.user||!config.password))return alert("informe servidor, usuário e senha");
+  await api(`/api/v1/projects/${encodeURIComponent(curProj)}/connectors`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type,config})});
+  loadConnectors()}
+async function syncConnector(id){const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/connectors/${id}/sync`,{method:"POST"});
+  onJob(r.job.id,j=>{if(j.status==="done"){loadConnectors();selectProject()}if(j.status==="failed")alert(j.error)})}
+async function delConnector(id){if(!confirm("Remover esta fonte automática?"))return;
+  await api(`/api/v1/projects/${encodeURIComponent(curProj)}/connectors/${id}`,{method:"DELETE"});loadConnectors()}
+
+// ───────────────────────── áudio (AUD-01…AUD-09)
+async function loadVoices(){const r=await api("/api/v1/voices?refresh=1");
+  $("#voiceSel").innerHTML=r.voices.map(v=>`<option value="${esc(v.id)}"${v.id===r.default?" selected":""}>${esc(v.name)} · ${esc(v.language)}</option>`).join("")||"<option value=''>nenhuma voz instalada</option>";
+  $("#voiceList").innerHTML=r.voices.length?`<table>${r.voices.map(v=>`<tr><td><b>${esc(v.name)}</b><br><span class="sub" style="font-size:12px">${esc(v.engine)} · ${esc(v.language)}${v.builtin?"":" · sua"}</span></td>
+    <td><button class="btn sec" onclick="preview('${esc(v.id)}')">ouvir</button>${v.builtin?"":`<button class="btn sec" onclick="delVoice('${esc(v.id)}')">apagar</button>`}</td></tr>`).join("")}</table>`
+  :"<span class='sub'>nenhuma voz. Baixe uma na aba Modelos: recipe:piper-pt-br-faber</span>";
+  const pk=await api("/api/v1/audio/packages").catch(()=>({packages:[]}));
+  $("#pkgList").innerHTML=pk.packages.map(p=>`<span class="tag ${p.installed?"ok":""}">${esc(p.name)}${p.installed?" instalado":""}</span> ${p.installed||!p.requirements?"":`<button class="btn sec" style="padding:2px 8px" onclick="installPkg('${esc(p.id)}')">instalar</button>`}`).join(" ")}
+async function preview(id){const r=await fetch(`/api/v1/voices/${encodeURIComponent(id)}/preview`,{method:"POST",headers:{"content-type":"application/json"},body:"{}"});
+  if(!r.ok){const j=await r.json().catch(()=>({}));return alert(j.error||"não consegui falar");}
+  new Audio(URL.createObjectURL(await r.blob())).play()}
+async function delVoice(id){if(!confirm("Apagar a voz "+id+"?"))return;await api("/api/v1/voices/"+encodeURIComponent(id),{method:"DELETE"});loadVoices()}
+async function speak(){const text=$("#ttsText").value.trim();if(!text)return;$("#ttsOut").innerHTML="<span class='sub'>falando…</span>";
+  const r=await fetch("/v1/audio/speech",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({input:text,voice:$("#voiceSel").value||undefined,response_format:$("#ttsFmt").value,speed:+$("#ttsSpeed").value||1})});
+  if(!r.ok){const j=await r.json().catch(()=>({}));$("#ttsOut").innerHTML=`<div class="err">${esc(j.error?.message||"falhou")}</div>`;return}
+  const url=URL.createObjectURL(await r.blob());$("#ttsOut").innerHTML=`<audio controls src="${url}" style="width:100%"></audio>`}
+async function cloneVoice(){const name=$("#cloneName").value.trim();const f=$("#cloneFile").files[0];
+  if(!name||!f)return alert("informe o nome e escolha uma amostra de áudio");
+  const fd=new FormData();fd.append("name",name);fd.append("sample",f);fd.append("engine","tts-clone");
+  const r=await fetch("/api/v1/voices/clone",{method:"POST",body:fd}).then(x=>x.json());
+  alert(r.error||("voz '"+r.voice.id+"' criada. "+(r.hint||"")));$("#cloneName").value="";loadVoices()}
+async function installPkg(id){const r=await api(`/api/v1/audio/packages/${id}/install`,{method:"POST"});document.querySelector('[data-t=jobs]').click();onJob(r.job.id,j=>{if(j.status==="done")loadVoices()})}
+async function transcribe(){const f=$("#sttFile").files[0];if(!f)return alert("escolha um arquivo");
+  $("#sttOut").innerHTML="<span class='sub'>transcrevendo… (o primeiro uso carrega o modelo)</span>";
+  const fd=new FormData();fd.append("file",f);fd.append("response_format",$("#sttFmt").value);if($("#sttDia").checked)fd.append("diarize","1");
+  const r=await fetch("/v1/audio/transcriptions",{method:"POST",body:fd});
+  const isJson=(r.headers.get("content-type")||"").includes("json");const body=isJson?await r.json():await r.text();
+  if(!r.ok){$("#sttOut").innerHTML=`<div class="err">${esc(body.error?.message||body)}</div>`;return}
+  const text=typeof body==="string"?body:(body.segments?body.segments.map(s=>(s.speaker?s.speaker+": ":"")+s.text).join("\n"):body.text);
+  $("#sttOut").innerHTML=`<pre style="white-space:pre-wrap">${esc(text)}</pre>`}
+async function makeMusic(){const prompt=$("#musicPrompt").value.trim();if(!prompt)return;
+  const r=await api("/api/v1/audio/music",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({prompt,engine:$("#musicEngine").value,durationSec:+$("#musicDur").value||15})});
+  document.querySelector('[data-t=jobs]').click();onJob(r.job.id,j=>{if(j.status==="done")alert("música pronta: "+(j.result?.file||""))})}
+
+// ───────────────────────── reuniões (AUD-08)
+let liveMeeting=null;
+async function loadMeetings(){const r=await api("/api/v1/meetings");liveMeeting=r.recording[0]||null;
+  $("#meetStop").disabled=!liveMeeting;$("#meetStart").disabled=!!liveMeeting;$("#meetState").textContent=liveMeeting?"gravando":"parado";
+  $("#meetState").className="tag "+(liveMeeting?"warn":"");
+  $("#meetList").innerHTML=r.meetings.length?`<table>${r.meetings.map(m=>`<tr><td><b>${esc(m.title)}</b><br><span class="sub" style="font-size:12px">${new Date(m.startedAt).toLocaleString("pt-BR")} · ${m.segments} trecho(s) · ${esc(m.status)}</span></td>
+    <td><a class="btn sec" style="padding:2px 8px;text-decoration:none" href="/api/v1/meetings/${m.id}/export?format=md" target="_blank">markdown</a>
+        <a class="btn sec" style="padding:2px 8px;text-decoration:none" href="/api/v1/meetings/${m.id}/export?format=srt" target="_blank">srt</a>
+        <button class="btn sec" style="padding:2px 8px" onclick="showMeeting('${m.id}')">ver</button>
+        <button class="btn sec" style="padding:2px 8px" onclick="delMeeting('${m.id}')">apagar</button></td></tr>`).join("")}</table>`:"<span class='sub'>nenhuma reunião gravada</span>";
+  try{const d=await api("/api/v1/meetings/devices");
+    $("#meetDevices").innerHTML=d.devices.length?`fontes encontradas: ${d.devices.map(x=>`<span class="tag ${x.kind==="system"?"ok":""}">${esc(x.name)}</span>`).join(" ")}`
+      :"nenhuma fonte encontrada — instale o ffmpeg (aba Motores) e, no Windows, um dispositivo de loopback para o som do sistema"}catch(e){$("#meetDevices").textContent=e.message}}
+async function startMeeting(){const sources=[];if($("#meetMic").checked)sources.push("mic");if($("#meetSys").checked)sources.push("system");
+  if(!sources.length)return alert("escolha ao menos uma fonte");
+  $("#meetLive").innerHTML="";
+  try{const m=await api("/api/v1/meetings",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({title:$("#meetTitle").value||undefined,sources,projectId:$("#meetProject").value||undefined})});
+    liveMeeting=m.id;loadMeetings()}catch(e){alert(e.message)}}
+async function stopMeeting(){if(!liveMeeting)return;$("#meetState").textContent="resumindo…";
+  try{const m=await api(`/api/v1/meetings/${liveMeeting}/stop`,{method:"POST",headers:{"content-type":"application/json"},body:"{}"});
+    if(m.summary)$("#meetLive").insertAdjacentHTML("beforeend",`<div class="msg a" style="max-width:100%"><b>Resumo</b><br>${esc(m.summary.summary)}${m.summary.actions.length?"<br><br><b>Ações</b><br>"+m.summary.actions.map(a=>"• "+esc(a.text)+(a.owner?" ("+esc(a.owner)+")":"")).join("<br>"):""}</div>`)}
+  catch(e){alert(e.message)}
+  liveMeeting=null;loadMeetings()}
+async function showMeeting(id){const m=await api("/api/v1/meetings/"+id);
+  $("#meetLive").innerHTML=(m.summary?`<div class="msg a" style="max-width:100%"><b>Resumo</b><br>${esc(m.summary.summary)}</div>`:"")+
+    (m.transcript?.segments||[]).map(s=>`<div class="msg a" style="max-width:100%"><span class="tag">${fmtClock(s.start)}</span> ${s.speaker?`<b>${esc(s.speaker)}</b>: `:""}${esc(s.text)}</div>`).join("")}
+async function delMeeting(id){if(!confirm("Apagar esta reunião e o áudio?"))return;await api("/api/v1/meetings/"+id,{method:"DELETE"});loadMeetings()}
+const fmtClock=s=>{const t=Math.round(s||0);return `${Math.floor(t/60)}:${String(t%60).padStart(2,"0")}`};
+
+// ───────────────────────── vídeo (VID-01)
+async function loadVideos(){const lib=await api("/api/v1/models?kind=video").catch(()=>({models:[]}));
+  $("#vidModel").innerHTML=lib.models.filter(m=>["main","diffusion"].includes(m.inspection.role)).map(m=>`<option value="${esc(m.id)}">${esc(m.filename)}</option>`).join("")||"<option value=''>nenhum modelo de vídeo (recipe:wan22-5b)</option>";
+  const r=await api("/api/v1/outputs?kind=video");
+  $("#vidGal").innerHTML=r.items.length?r.items.map(i=>`<div><video controls src="/api/v1/outputs/file?path=${encodeURIComponent(i.file)}" style="width:100%;border-radius:6px"></video><div class="sub" style="font-size:12px">${esc((i.prompt||"").slice(0,60))}</div></div>`).join(""):"<span class='sub'>nenhum vídeo ainda</span>"}
+async function genVideo(){const prompt=$("#vidPrompt").value.trim();if(!prompt)return alert("escreva o que deve aparecer");
+  const body={prompt,model:$("#vidModel").value||undefined,width:+$("#vidW").value,height:+$("#vidH").value,frames:+$("#vidFrames").value,fps:+$("#vidFps").value};
+  const r=await api("/api/v1/generate/video",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+  $("#vidStatus").textContent="gerando… acompanhe em Trabalhos";
+  onJob(r.job.id,j=>{$("#vidStatus").textContent=j.message||"";if(j.status==="done"){loadVideos();$("#vidStatus").textContent="pronto"}if(j.status==="failed")$("#vidStatus").innerHTML=`<span class="err">${esc(j.error)}</span>`})}
+
+// ───────────────────────── configurações (CORE-02 + API-01)
+const CFG_LABELS={"ui.language":"Idioma","ui.theme":"Tema","engines.idleUnloadMinutes":"Descarregar motor ocioso (min)","engines.preferredBackend":"Backend preferido","engines.vramBudgetMiB":"Orçamento de VRAM (MiB)","downloads.parallelFiles":"Downloads em paralelo","downloads.parallelChunks":"Pedaços por arquivo","downloads.maxSpeedMiBps":"Limite de velocidade (MiB/s)","downloads.hfMirror":"Espelho do Hugging Face","audio.defaultVoice":"Voz padrão","audio.sttModel":"Modelo de transcrição","audio.meetingWindowSec":"Janela da reunião (s)","documents.embeddingModel":"Modelo de embeddings","documents.rerankModel":"Modelo de rerank","documents.ocrModel":"Modelo de OCR","documents.chunkTokens":"Tamanho do trecho","documents.chunkOverlap":"Sobreposição","server.port":"Porta","server.openBrowser":"Abrir o navegador ao iniciar","server.rateLimitPerMinute":"Limite de chamadas por minuto","agent.enabled":"Agente ligado","agent.port":"Porta do agente"};
+const ENUMS={"ui.language":["pt-BR","en"],"ui.theme":["system","dark","light"],"engines.preferredBackend":["auto","cuda","vulkan","metal","rocm","cpu"]};
+let CFG_SNAPSHOT={};
+async function loadConfig(){const r=await api("/api/v1/config");const cfg=r.config;CFG_SNAPSHOT=cfg;
+  $("#cfgForm").innerHTML=`<table>${r.editable.map(key=>{const value=key.split(".").reduce((o,k)=>o?.[k],cfg);
+    const shown=Array.isArray(value)?value.join(", "):value;
+    const input=ENUMS[key]?`<select data-k="${key}">${ENUMS[key].map(v=>`<option${String(value)===v?" selected":""}>${v}</option>`).join("")}</select>`
+      :typeof value==="boolean"?`<input type="checkbox" data-k="${key}"${value?" checked":""}>`
+      :`<input type="text" data-k="${key}" value="${esc(shown??"")}" placeholder="vazio = padrão">`;
+    return `<tr><td>${esc(CFG_LABELS[key]||key)}<br><span class="sub mono" style="font-size:11px">${key}</span></td><td>${input}</td></tr>`}).join("")}</table>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="saveConfig()">Salvar</button><span id="cfgMsg" class="sub" style="margin:0"></span></div>`;
+  loadKeys()}
+async function saveConfig(){const patch={};
+  document.querySelectorAll("#cfgForm [data-k]").forEach(el=>{const key=el.dataset.k;let v=el.type==="checkbox"?el.checked:el.value;
+    if(Array.isArray(key.split(".").reduce((o,k)=>o?.[k],CFG_SNAPSHOT))){v=String(v).split(",").map(x=>x.trim()).filter(Boolean)}
+    else if(typeof v==="string"){v=v.trim();if(v==="")v=null;else if(v!=="auto"&&!isNaN(Number(v))&&!ENUMS[key])v=Number(v)}
+    const parts=key.split(".");let node=patch;for(const p of parts.slice(0,-1)){node[p]=node[p]||{};node=node[p]}node[parts.at(-1)]=v});
+  try{const r=await api("/api/v1/config",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(patch)});
+    $("#cfgMsg").innerHTML=r.changed.length?`salvo: ${r.changed.join(", ")}${r.needsRestart.length?` <span class="warn">(reinicie para ${r.needsRestart.join(", ")})</span>`:""}`:"nada mudou"}
+  catch(e){$("#cfgMsg").innerHTML=`<span class="err">${esc(e.message)}</span>`}}
+async function loadKeys(){const r=await api("/api/v1/config/api-keys");
+  $("#keyState").textContent=r.keys.length?`${r.keys.length} chave(s) — a API exige Authorization`:"nenhuma chave — só esta máquina acessa";
+  $("#keyList").innerHTML=r.keys.map(k=>`<div class="mono sub" style="font-size:12px">${esc(k.prefix)}… <span class="tag">sha256 ${esc(k.sha256)}</span></div>`).join("")}
+async function newKey(){const r=await api("/api/v1/config/api-key",{method:"POST",headers:{"content-type":"application/json"},body:"{}"});
+  prompt("Guarde agora — a chave não aparece de novo:",r.key);loadKeys()}
 </script>
 </body>
 </html>

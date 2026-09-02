@@ -14,7 +14,9 @@
     "dev": "node scripts/build.mjs && node dist/server.cjs serve --no-open",
     "doctor": "node scripts/build.mjs && node dist/server.cjs doctor",
     "test": "vitest run",
-    "typecheck": "tsc -p server/tsconfig.json --noEmit"
+    "typecheck": "tsc -p server/tsconfig.json --noEmit",
+    "release": "node packaging/build-release.mjs",
+    "test:api": "vitest run server/src/api/api.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.14.0",

@@ -9,6 +9,9 @@ web/dist/assets/
 runtime/
 engines/*
 !engines/catalog.yaml
+# os servidores Python do runner (AUD-10) são fonte, não estado
+!engines/python/
+!engines/python/**
 models/*
 !models/recipes/
 !models/recipes/**

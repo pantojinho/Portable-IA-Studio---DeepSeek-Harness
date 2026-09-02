@@ -12,10 +12,11 @@ import { logger } from "../core/log.js";
 const log = logger("sdcpp");
 
 /**
- * ENG-05 (cli mode). stable-diffusion.cpp `sd-cli`: one process per generation, PNG + params JSON in
+ * ENG-05 + ENG-05b. stable-diffusion.cpp `sd-cli`: one process per generation, PNG + params JSON in
  * data/outputs. Model files come from the library; multi-file models (Flux, SD3.5, Z-Image, Wan)
  * use the recipe's engineArgs.sdcpp with {slot} placeholders filled from sidecars.
- * sd-server mode (persistent) is a follow-up (ENG-05b) — cli mode already proves the whole path.
+ * Covers txt2img, img2img, inpaint, upscale (ESRGAN) and video (vid_gen, VID-01); LoRAs are picked
+ * with `<lora:nome:peso>` inside the prompt, which is sd.cpp's own syntax.
  */
 export interface ImageParams {
   prompt: string;
@@ -27,6 +28,14 @@ export interface ImageParams {
   initImage?: string; strength?: number;   // img2img
   mask?: string;                 // inpaint
   lora?: { path: string; weight?: number }[];
+  /** upscale: ESRGAN model id/path and factor */
+  upscaleModel?: string;
+  upscaleRepeats?: number;
+  /** video (VID-01) */
+  frames?: number;
+  fps?: number;
+  /** which operation to run; inferred from initImage/mask when absent */
+  task?: "txt2img" | "img2img" | "inpaint" | "upscale" | "txt2vid" | "img2vid";
   extra?: string[];
 }
 
@@ -71,7 +80,8 @@ export class SdCppAdapter implements EngineAdapter {
 
   async run(instance: EngineInstance, req: RunRequest): Promise<RunResult> {
     const p = req.input as unknown as ImageParams;
-    if (!p.prompt) throw new Error("prompt é obrigatório");
+    // upscale não descreve nada: só amplia a imagem que veio
+    if (!p.prompt && req.task !== "upscale") throw new Error("prompt é obrigatório");
     const exe = String(instance.settings.exe);
     const outDir = path.join(this.ctx.paths.outputs, "images");
     fs.mkdirSync(outDir, { recursive: true });
@@ -81,7 +91,7 @@ export class SdCppAdapter implements EngineAdapter {
     const recipeArgs = (instance.settings.recipeArgs as string[] | null) ?? null;
     const args = ["-M", req.task === "img2img" || req.task === "inpaint" ? "img_gen" : req.task === "upscale" ? "upscale" : req.task === "txt2vid" || req.task === "img2vid" ? "vid_gen" : "img_gen",
       ...this.modelArgs(instance.model!, instance.companions, recipeArgs),
-      "-p", p.prompt, "-o", `${base}.png`, "--seed", String(seed), "-v"];
+      ...(p.prompt ? ["-p", p.prompt] : []), "-o", `${base}.png`, "--seed", String(seed), "-v"];
     if (p.negative) args.push("-n", p.negative);
     if (p.width) args.push("-W", String(p.width)); if (p.height) args.push("-H", String(p.height));
     if (p.steps) args.push("--steps", String(p.steps)); if (p.cfg != null) args.push("--cfg-scale", String(p.cfg));
@@ -89,7 +99,20 @@ export class SdCppAdapter implements EngineAdapter {
     if (p.n && p.n > 1) args.push("-b", String(p.n));
     if (p.initImage) { args.push("-i", p.initImage); if (p.strength != null) args.push("--strength", String(p.strength)); }
     if (p.mask) args.push("--mask", p.mask);
-    for (const l of p.lora ?? []) args.push("--lora-model-dir", path.dirname(l.path));
+    // LoRA: sd.cpp lê "<lora:nome:peso>" do próprio prompt; basta dizer onde estão os arquivos
+    const loraDir = p.lora?.length ? path.dirname(p.lora[0]!.path) : this.loraDir();
+    if (loraDir) args.push("--lora-model-dir", loraDir);
+    if (req.task === "upscale") {
+      const upscaler = this.findUpscaler(p.upscaleModel);
+      if (!upscaler) throw new Error("nenhum modelo de upscale (ESRGAN) na biblioteca. Baixe um .pth/.gguf de ESRGAN e guarde em models/image/.");
+      args.push("--upscale-model", upscaler);
+      if (p.upscaleRepeats && p.upscaleRepeats > 1) args.push("--upscale-repeats", String(p.upscaleRepeats));
+      if (p.initImage) args.push("-i", p.initImage);
+    }
+    if (req.task === "txt2vid" || req.task === "img2vid") {
+      args.push("--video-frames", String(p.frames ?? 33));
+      if (p.fps) args.push("--fps", String(p.fps));
+    }
     if (instance.backend !== "cpu" && !args.includes("--offload-to-cpu") && (instance.model?.sizeBytes ?? 0) > 4 * 1024 ** 3) args.push("--offload-to-cpu");
     if (p.extra) args.push(...p.extra);
     // recipe defaults must not override explicit user params: remove duplicates keeping the last occurrence
@@ -115,7 +138,36 @@ export class SdCppAdapter implements EngineAdapter {
 
   async health(): Promise<boolean> { return true; }
   async stop(): Promise<void> { /* cli mode */ }
-  estimateVramMiB(): number | null { return 0; }
+
+  /**
+   * ENG-03b. Diffusion needs the weights plus room for the latents: about 1.1× the files, plus a
+   * margin that grows with the resolution. Reporting 0 (the old behaviour) made the planner think
+   * image models were free and let a 6 GB card try to hold an LLM and Flux at the same time.
+   */
+  estimateVramMiB(opts: LaunchOptions): number | null {
+    if (opts.backend === "cpu") return 0;
+    const bytes = opts.model.sizeBytes + (opts.companions ?? []).reduce((a, c) => a + c.sizeBytes, 0);
+    const weights = (bytes / 1048576) * 1.1;
+    const s = (opts.settings ?? {}) as { width?: number; height?: number; frames?: number };
+    const pixels = (s.width ?? 1024) * (s.height ?? 1024) * Math.max(1, s.frames ?? 1);
+    const latents = (pixels / (1024 * 1024)) * 600;   // ~600 MiB por megapixel de latente + VAE
+    return Math.round(weights + latents + 300);
+  }
+
+  /** LoRAs live in models/lora/ (or models/image/lora/); sd.cpp needs the folder, not the file. */
+  private loraDir(): string | null {
+    for (const dir of [path.join(this.ctx.paths.models, "lora"), path.join(this.ctx.paths.models, "image", "lora")]) {
+      if (fs.existsSync(dir) && fs.readdirSync(dir).some((f) => /\.(safetensors|ckpt|pt|gguf)$/i.test(f))) return dir;
+    }
+    return null;
+  }
+
+  private findUpscaler(ref?: string): string | null {
+    if (ref && fs.existsSync(ref)) return ref;
+    const candidates = this.ctx.models.registry.list().filter((m) => m.inspection.role === "upscaler" || /esrgan|upscal/i.test(m.filename));
+    if (ref) return candidates.find((m) => m.id === ref || m.filename === ref)?.path ?? null;
+    return candidates[0]?.path ?? null;
+  }
 }
 
 function dedupeFlags(args: string[]): string[] {

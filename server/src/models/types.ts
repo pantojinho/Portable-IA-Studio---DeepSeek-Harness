@@ -72,6 +72,8 @@ export interface PlannedFile {
   sha256: string | null;
   /** true when we only guessed the kind from the name and must confirm by inspecting the bytes */
   tentative: boolean;
+  /** MOD-08: archive (voice pack, engine bundle) — unpack into a folder and drop the archive */
+  extract?: boolean;
 }
 
 export interface DownloadPlan {

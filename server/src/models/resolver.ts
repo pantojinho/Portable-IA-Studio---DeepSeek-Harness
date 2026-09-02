@@ -4,6 +4,7 @@ import { HfClient, HfError, globToRegExp, isSplitShard } from "./hf.js";
 import { parseRef, refLabel, type ParsedRef } from "./refs.js";
 import { guessFromName, quantFromName } from "./inspect.js";
 import type { Recipe, RecipeFile, RecipeFileFrom, RecipeStore } from "./recipes.js";
+import { isArchive } from "../core/archive.js";
 import type { DownloadPlan, FileRole, HfModelInfo, HfTreeEntry, PlannedFile } from "./types.js";
 
 /**
@@ -89,11 +90,13 @@ function shaOf(e: HfTreeEntry): string | null { return e.lfs?.oid && /^[0-9a-f]{
 async function resolveFrom(
   ctx: ResolveContext, cache: TreeCache, from: RecipeFileFrom, kind: ModelKind, warnings: string[], multi: boolean,
 ): Promise<{ repo: string; revision: string; entries: HfTreeEntry[]; quant: string | null; fits: boolean } | null> {
+  const repo = from.repo;
+  if (!repo) return null;   // fontes por URL direta são resolvidas antes (planFromRecipe)
   const revision = from.revision ?? "main";
-  const { entries, info, error } = await repoTree(ctx, cache, from.repo, revision);
+  const { entries, info, error } = await repoTree(ctx, cache, repo, revision);
   const gated = !!info?.gated && !ctx.hf.hasToken();
   const tryAlt = async (why: string) => {
-    warnings.push(`${from.repo}: ${why}`);
+    warnings.push(`${repo}: ${why}`);
     for (const alt of from.alternatives ?? []) { const r = await resolveFrom(ctx, cache, alt, kind, warnings, multi); if (r) return r; }
     return null;
   };
@@ -104,16 +107,16 @@ async function resolveFrom(
     // the UI asks for the token instead of hiding the whole plan
     const alt = (from.alternatives ?? []).length ? await tryAlt("repositório gated e nenhum token HF configurado — tentando alternativa") : null;
     if (alt) return alt;
-    warnings.push(`${from.repo} é gated: aceite a licença na página do Hugging Face e informe seu token (aistudio models token hf <TOKEN>) antes de baixar.`);
+    warnings.push(`${repo} é gated: aceite a licença na página do Hugging Face e informe seu token (aistudio models token hf <TOKEN>) antes de baixar.`);
   }
 
   if (from.path) {
     const e = entries.find((x) => x.path === from.path);
-    if (e) return { repo: from.repo, revision, entries: [e], quant: quantFromName(e.path), fits: true };
+    if (e) return { repo: repo, revision, entries: [e], quant: quantFromName(e.path), fits: true };
     // huge repos (piper-voices) can exceed what we page through: confirm the exact path with a HEAD
-    const meta = await ctx.hf.fileMeta(from.repo, from.path, revision).catch(() => null);
+    const meta = await ctx.hf.fileMeta(repo, from.path, revision).catch(() => null);
     if (meta && !meta.gatedDenied && meta.exists) {
-      return { repo: from.repo, revision, entries: [{ type: "file", path: from.path, size: meta.size ?? 0, lfs: meta.sha256 && meta.size ? { oid: meta.sha256, size: meta.size } : undefined }], quant: quantFromName(from.path), fits: true };
+      return { repo: repo, revision, entries: [{ type: "file", path: from.path, size: meta.size ?? 0, lfs: meta.sha256 && meta.size ? { oid: meta.sha256, size: meta.size } : undefined }], quant: quantFromName(from.path), fits: true };
     }
     return tryAlt(`arquivo '${from.path}' não encontrado`);
   }
@@ -121,7 +124,7 @@ async function resolveFrom(
     const re = globToRegExp(from.glob);
     const hits = entries.filter((x) => re.test(x.path)).sort((a, b) => a.path.localeCompare(b.path));
     if (hits.length === 0) return tryAlt(`nenhum arquivo bate com '${from.glob}'`);
-    return { repo: from.repo, revision, entries: multi ? hits : [hits[0]!], quant: quantFromName(hits[0]!.path), fits: true };
+    return { repo: repo, revision, entries: multi ? hits : [hits[0]!], quant: quantFromName(hits[0]!.path), fits: true };
   }
   if (from.pattern) {
     const cands = entries.filter((x) => WEIGHT_EXT.test(x.path) && !/mmproj/i.test(x.path)).map((x) => ({ path: x.path, size: sizeOf(x), entry: x }));
@@ -134,7 +137,7 @@ async function resolveFrom(
     const shard = isSplitShard(picked.path);
     const group = shard ? entries.filter((x) => isSplitShard(x.path)?.base === shard.base) : [entries.find((x) => x.path === picked.path)!];
     if (!picked.fits) warnings.push(`${path.posix.basename(picked.path)} (${fmtBytes(picked.size)}) passa do orçamento de VRAM; vai rodar com offload para RAM/CPU.`);
-    return { repo: from.repo, revision, entries: group, quant: picked.quant, fits: picked.fits };
+    return { repo: repo, revision, entries: group, quant: picked.quant, fits: picked.fits };
   }
   return tryAlt("origem sem path/glob/pattern");
 }
@@ -148,6 +151,16 @@ export async function planFromRecipe(recipe: Recipe, ctx: ResolveContext, ref = 
 
   for (const f of recipe.files) {
     const kind = f.kind ?? recipe.kind;
+    // MOD-08: voice packs and other bundles live outside the Hugging Face tree
+    if (f.from.url) {
+      const name = f.filename ?? path.posix.basename(new URL(f.from.url).pathname);
+      files.push({
+        url: f.from.url, filename: name, kind, subdir: f.subdir, role: f.role,
+        sizeBytes: f.from.sizeBytes ?? null, sha256: f.from.sha256 ?? null, tentative: false,
+        extract: f.extract ?? isArchive(name),
+      });
+      continue;
+    }
     const multi = f.role === "voice" || f.role === "config";
     const r = await resolveFrom(ctx, cache, f.from, kind, warnings, multi);
     if (!r) {
@@ -159,6 +172,7 @@ export async function planFromRecipe(recipe: Recipe, ctx: ResolveContext, ref = 
         url: ctx.hf.fileUrl(r.repo, e.path, r.revision), repo: r.repo, repoPath: e.path, revision: r.revision,
         filename: f.filename && r.entries.length === 1 ? f.filename : path.posix.basename(e.path),
         kind, subdir: f.subdir, role: f.role, sizeBytes: sizeOf(e) || null, sha256: shaOf(e), tentative: false,
+        extract: f.extract ?? isArchive(e.path),
       });
     }
   }

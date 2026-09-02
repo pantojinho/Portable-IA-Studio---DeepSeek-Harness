@@ -7,11 +7,14 @@ import { headLooksValid, inspectFile } from "./inspect.js";
 import type { PlannedFile, Inspection } from "./types.js";
 import { bus } from "../core/events.js";
 import { logger } from "../core/log.js";
+import { decideParallel, downloadInChunks, pendingChunks } from "./parallel.js";
 
 const log = logger("download");
 
 export interface DownloadOptions {
   headers?: Record<string, string>;
+  /** MOD-07: how many ranges may travel at once (1 = classic single stream) */
+  parallelChunks?: number;
   signal?: AbortSignal;
   /** bytes/sec cap; null = unlimited */
   maxSpeed?: number | null;
@@ -46,9 +49,9 @@ export class DownloadError extends Error {
  *  - resume via HTTP Range when the server supports it
  *  - early rejection of HTML / wrong-format responses (first 4 KB are sniffed)
  *  - streaming sha256 compared with the expected hash
- * Chunked-parallel download is deliberately NOT here: one stream saturates the
- * HF CDN on consumer links and keeps the resume logic trivial (task MOD-07 may
- * add it behind the same signature).
+ * MOD-07: when the file is big, the server accepts Range and the user asked for more than one
+ * chunk (`downloads.parallelChunks`), the transfer is split across parallel ranges by
+ * models/parallel.ts — same signature, same validation, same resume.
  */
 export async function downloadFile(file: PlannedFile, destPath: string, opts: DownloadOptions = {}): Promise<DownloadResult> {
   fs.mkdirSync(path.dirname(destPath), { recursive: true });
@@ -57,7 +60,10 @@ export async function downloadFile(file: PlannedFile, destPath: string, opts: Do
   let offset = fs.existsSync(tmp) ? fs.statSync(tmp).size : 0;
   const expected = file.sizeBytes ?? null;
   if (expected && offset > expected) { fs.unlinkSync(tmp); offset = 0; }
-  if (expected && offset === expected && offset > 4096) {
+  // MOD-07: um .part de uma execução em paralelo tem o tamanho final mas pode estar furado;
+  // quem manda é o arquivo de estado.
+  const pending = pendingChunks(tmp, file.url);
+  if (!pending && expected && offset === expected && offset > 4096) {
     // previous run finished writing but not verifying
     return finalize(file, tmp, destPath, expected, null, true, opts);
   }
@@ -71,6 +77,25 @@ export async function downloadFile(file: PlannedFile, destPath: string, opts: Do
   // identity encoding: content-length must equal the bytes we count (gzip would break the size check)
   const headers: Record<string, string> = { "user-agent": "AI-Studio/0.1", accept: "*/*", "accept-encoding": "identity", ...(opts.headers ?? {}) };
   if (offset > 0) headers.range = `bytes=${offset}-`;
+
+  if (pending) {
+    log.info(`${file.filename}: retomando ${pending.chunks} pedaço(s) da execução anterior`);
+    const bytes = await downloadInChunks(file, tmp, pending.total, pending.chunks, { ...opts, headers: { ...headers, range: undefined as unknown as string } });
+    return finalize(file, tmp, destPath, bytes, null, true, opts);
+  }
+
+  // MOD-07: vale a pena abrir várias conexões? (arquivo grande + servidor com Range + configuração)
+  if (opts.parallelChunks && opts.parallelChunks > 1 && offset === 0) {
+    const probe = await probeRange(file.url, headers, opts.signal);
+    const decision = decideParallel({ totalBytes: probe.total ?? expected, acceptRanges: probe.acceptRanges, configuredChunks: opts.parallelChunks, alreadyOnDisk: offset });
+    if (decision.parallel && (probe.total ?? expected)) {
+      const total = (probe.total ?? expected)!;
+      log.info(`${file.filename}: ${decision.reason}`);
+      const bytes = await downloadInChunks(file, tmp, total, decision.chunks, { ...opts, headers });
+      return finalize(file, tmp, destPath, bytes, null, false, opts);
+    }
+    log.debug(`${file.filename}: uma conexão só (${decision.reason})`);
+  }
 
   let res: Response;
   try { res = await fetch(file.url, { headers, signal: opts.signal, redirect: "follow" }); }
@@ -195,6 +220,23 @@ function describeHttp(res: Response, file: PlannedFile): string {
   if (res.status === 404) return `${file.filename}: arquivo não encontrado (HTTP 404). O link pode estar errado ou o arquivo foi removido.`;
   if (res.status === 416) return `${file.filename}: o arquivo parcial no disco é maior que o remoto; apague o .part e tente de novo.`;
   return `${file.filename}: HTTP ${res.status} ${res.statusText}`;
+}
+
+/** One cheap request to learn the size and whether the server slices (HEAD, falling back to Range). */
+async function probeRange(url: string, headers: Record<string, string>, signal?: AbortSignal): Promise<{ total: number | null; acceptRanges: boolean }> {
+  try {
+    const head = await fetch(url, { method: "HEAD", headers, signal, redirect: "follow" });
+    const len = Number(head.headers.get("content-length"));
+    const accepts = (head.headers.get("accept-ranges") ?? "").toLowerCase().includes("bytes");
+    if (head.ok && Number.isFinite(len) && len > 0) return { total: len, acceptRanges: accepts };
+  } catch { /* alguns CDNs não respondem HEAD */ }
+  try {
+    const probe = await fetch(url, { headers: { ...headers, range: "bytes=0-0" }, signal, redirect: "follow" });
+    probe.body?.cancel().catch(() => { /* já descartado */ });
+    const cr = probe.headers.get("content-range")?.match(/\/(\d+)$/);
+    if (probe.status === 206 && cr) return { total: Number(cr[1]), acceptRanges: true };
+  } catch { /* sem probe: segue com uma conexão */ }
+  return { total: null, acceptRanges: false };
 }
 
 export function fmt(n: number): string { return n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(2)} GB` : n >= 1024 ** 2 ? `${Math.round(n / 1024 ** 2)} MB` : `${Math.round(n / 1024)} KB`; }

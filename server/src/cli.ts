@@ -12,6 +12,10 @@ import { runDoctor } from "./commands/doctor.js";
 const VERSION = "0.1.0";
 const log = logger("cli");
 
+// Aviso "SQLite is an experimental feature": só aparece em Node 22. O runtime portátil do Studio
+// é o Node 24, onde node:sqlite é estável e nada é impresso (não dá para filtrar: o aviso de
+// módulo embutido não passa pelo evento 'warning').
+
 interface Args { cmd: string; rest: string[]; flags: Record<string, string | boolean> }
 
 function parseArgs(argv: string[]): Args {
@@ -39,7 +43,12 @@ const HELP = `AI Studio ${VERSION}
   aistudio providers <list|key>                                        provedores remotos (via API)
   aistudio run "<pergunta>" [--model id]                               chat rápido
   aistudio agent <status|install|start|stop|run "tarefa">              agente de código (DeepSeek Harness)
-  aistudio service <install|uninstall|status>  rodar como serviço (SVC-01)
+  aistudio projects <list|new|add|ingest|ask|search|extract|report>    projetos de documentos
+  aistudio speak "texto" [--voice id] [--out arquivo]                  falar (TTS)
+  aistudio transcribe <arquivo> [--diarize] [--format srt]             transcrever áudio/vídeo
+  aistudio meeting <start|stop|list> [--title T] [--project P]         gravar reunião
+  aistudio config <show|set <chave> <valor>|keys [new|list|remove]>    configuração e chaves de API
+  aistudio service <install|uninstall|status|start|stop|logs>          rodar sozinho ao ligar
   aistudio --help
 `;
 
@@ -62,6 +71,12 @@ async function main(): Promise<void> {
     case "providers": { const { providersCmd } = await import("./commands/engines.js"); return providersCmd(ctx, rest); }
     case "run": { const { runCmd } = await import("./commands/engines.js"); return runCmd(ctx, rest, flags); }
     case "agent": { const { agentCmd } = await import("./commands/agent.js"); return agentCmd(ctx, rest, flags); }
+    case "config": { const { configCmd } = await import("./commands/config.js"); return configCmd(ctx, rest); }
+    case "service": { const { serviceCmd } = await import("./commands/service.js"); return serviceCmd(ctx, rest, flags); }
+    case "projects": { const { projectsCmd } = await import("./commands/projects.js"); return projectsCmd(ctx, rest, flags); }
+    case "speak": { const { speakCmd } = await import("./commands/audio.js"); return speakCmd(ctx, rest, flags); }
+    case "transcribe": { const { transcribeCmd } = await import("./commands/audio.js"); return transcribeCmd(ctx, rest, flags); }
+    case "meeting": { const { meetingCmd } = await import("./commands/audio.js"); return meetingCmd(ctx, rest, flags); }
     default:
       console.error(`Comando desconhecido: ${cmd}\n`); console.log(HELP); process.exitCode = 1;
   }
@@ -69,6 +84,14 @@ async function main(): Promise<void> {
 
 async function serveCmd(ctx: StudioContext): Promise<void> {
   const { host } = ctx.config.server;
+  // API-01: exposing the Studio beyond loopback without a key would publish the models and the agent.
+  if (!["127.0.0.1", "::1", "localhost"].includes(host)) {
+    const { readApiKeys } = await import("./core/auth.js");
+    if (readApiKeys(ctx.paths, ctx.config).length === 0) {
+      throw new Error(`Servir em ${host} exige uma chave de API. Crie uma com "aistudio config keys new" ou passe --api-key <chave>.`);
+    }
+    log.warn(`Servindo em ${host}: qualquer máquina da rede alcança a API (a chave é obrigatória).`);
+  }
   const port = await findFreePort(ctx.config.server.port, 1421, 1499, host);
   if (port !== ctx.config.server.port) log.warn(`Porta ${ctx.config.server.port} ocupada; usando ${port}.`);
   ctx.config.server.port = port;

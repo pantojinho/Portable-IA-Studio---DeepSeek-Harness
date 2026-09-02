@@ -47,13 +47,17 @@ sdcpp:
 
 whispercpp:
   base: https://github.com/ggml-org/whisper.cpp/releases/download/{release}/
-  release: "TODO(AUD-01): fixar release"
+  release: v1.7.4
   keep: ["whisper-cli*", "whisper-server*", "*.dll", "*.so*", "*.dylib"]
   exe: { win: whisper-cli.exe, linux: whisper-cli, mac: whisper-cli }
   builds:
-    win-x64: { cpu: { file: "whisper-bin-x64.zip" }, cuda: { file: "whisper-cublas-12.4.0-bin-x64.zip" } }
-    linux-x64: { cpu: { file: "TODO" } }
-    mac-arm64: { metal: { file: "TODO" } }
+    win-x64:
+      cpu:  { file: "whisper-bin-x64.zip" }
+      cuda: { file: "whisper-cublas-12.4.0-bin-x64.zip" }
+    # O projeto whisper.cpp só publica binários para Windows. No macOS e no Linux o caminho é
+    # adotar a instalação antiga (aistudio engines adopt) ou compilar; ENG-01b fecha isso.
+    linux-x64: { cpu: { file: "SEM-BUILD-OFICIAL: compile com `make -j` no whisper.cpp ou use `aistudio engines adopt`" } }
+    mac-arm64: { metal: { file: "SEM-BUILD-OFICIAL: compile com `make -j` no whisper.cpp ou use `aistudio engines adopt`" } }
 
 ffmpeg:
   keep: ["ffmpeg*", "ffprobe*"]
@@ -64,27 +68,36 @@ ffmpeg:
     mac-arm64: { cpu: { file: "https://evermeet.cx/ffmpeg/getrelease/zip" } }
 
 sherpa-onnx:
-  # TTS (Piper VITS, Kokoro), VAD, diarização, RapidOCR-like; binários prebuilt por SO
+  # TTS (Piper VITS, Kokoro), VAD e diarização; binários prebuilt por SO, sem Python.
+  # A versão está fixada mas não foi baixada nesta máquina — se a instalação falhar, troque a
+  # release aqui (a mensagem de erro mostra a URL tentada). ENG-01b confirma em máquina limpa.
   base: https://github.com/k2-fsa/sherpa-onnx/releases/download/{release}/
-  release: "TODO(AUD-03): fixar release"
-  keep: ["bin/sherpa-onnx-offline-tts*", "bin/sherpa-onnx-offline-speaker-diarization*", "lib/*"]
+  release: v1.10.28
+  keep: ["sherpa-onnx-offline-tts*", "sherpa-onnx-offline-speaker-diarization*", "*.dll", "*.so*", "*.dylib"]
+  exe: { win: sherpa-onnx-offline-tts.exe, linux: sherpa-onnx-offline-tts, mac: sherpa-onnx-offline-tts }
   builds:
     win-x64:   { cpu: { file: "sherpa-onnx-{release}-win-x64-shared.tar.bz2" } }
     linux-x64: { cpu: { file: "sherpa-onnx-{release}-linux-x64-shared.tar.bz2" } }
     mac-arm64: { cpu: { file: "sherpa-onnx-{release}-osx-arm64-shared.tar.bz2" } }
 
 sqlite-ext:
-  # extensão sqlite-vec para node:sqlite (DOC-00)
+  # Extensão sqlite-vec para o node:sqlite (DOC-00). É OPCIONAL: sem ela a busca vetorial roda
+  # em JS (varredura por cosseno), o que dá conta de milhares de trechos. Instale quando o
+  # projeto crescer: aistudio engines install sqlite-ext
   base: https://github.com/asg017/sqlite-vec/releases/download/{release}/
-  release: "TODO(DOC-00): fixar release"
+  release: v0.1.6
+  keep: ["vec0.*"]
+  exe: { win: vec0.dll, linux: vec0.so, mac: vec0.dylib }
   builds:
-    win-x64:   { cpu: { file: "sqlite-vec-{release}-loadable-windows-x86_64.tar.gz" } }
-    linux-x64: { cpu: { file: "sqlite-vec-{release}-loadable-linux-x86_64.tar.gz" } }
-    mac-arm64: { cpu: { file: "sqlite-vec-{release}-loadable-macos-aarch64.tar.gz" } }
+    win-x64:   { cpu: { file: "sqlite-vec-0.1.6-loadable-windows-x86_64.tar.gz" } }
+    linux-x64: { cpu: { file: "sqlite-vec-0.1.6-loadable-linux-x86_64.tar.gz" } }
+    mac-arm64: { cpu: { file: "sqlite-vec-0.1.6-loadable-macos-aarch64.tar.gz" } }
 
 uv:
   # gerenciador Python portátil (AUD-10)
   base: https://github.com/astral-sh/uv/releases/latest/download/
+  keep: ["uv*"]
+  exe: { win: uv.exe, linux: uv, mac: uv }
   builds:
     win-x64:   { cpu: { file: "uv-x86_64-pc-windows-msvc.zip" } }
     linux-x64: { cpu: { file: "uv-x86_64-unknown-linux-gnu.tar.gz" } }
