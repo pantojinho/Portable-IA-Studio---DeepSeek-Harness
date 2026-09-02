@@ -57,7 +57,7 @@ export async function downloadFile(file: PlannedFile, destPath: string, opts: Do
   let offset = fs.existsSync(tmp) ? fs.statSync(tmp).size : 0;
   const expected = file.sizeBytes ?? null;
   if (expected && offset > expected) { fs.unlinkSync(tmp); offset = 0; }
-  if (expected && offset === expected) {
+  if (expected && offset === expected && offset > 4096) {
     // previous run finished writing but not verifying
     return finalize(file, tmp, destPath, expected, null, true, opts);
   }
@@ -92,7 +92,10 @@ export async function downloadFile(file: PlannedFile, destPath: string, opts: Do
     res.body?.cancel().catch(() => {});
     throw new DownloadError(`${file.url} devolveu uma página HTML, não um arquivo de modelo. Cole o link direto do arquivo (…/resolve/main/arquivo) ou o link do repositório para o Studio escolher o arquivo.`, "html");
   }
-  const total = expected ?? (() => { const cl = Number(res.headers.get("content-length")); const cr = res.headers.get("content-range")?.match(/\/(\d+)$/); return cr ? Number(cr[1]) : cl ? cl + offset : null; })();
+  // the server's own size wins over what the plan guessed (plans can carry a stale/wrong size)
+  const serverTotal = (() => { const cl = Number(res.headers.get("content-length")); const cr = res.headers.get("content-range")?.match(/\/(\d+)$/); return cr ? Number(cr[1]) : cl ? cl + offset : null; })();
+  if (expected && serverTotal && expected !== serverTotal) log.warn(`${file.filename}: plano dizia ${fmt(expected)}, servidor diz ${fmt(serverTotal)}; usando o servidor`);
+  const total = serverTotal ?? expected;
   if (!res.body) throw new DownloadError("resposta sem corpo", "network");
 
   const hash = createHash("sha256");
