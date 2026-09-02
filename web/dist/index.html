@@ -133,6 +133,15 @@ pre{background:var(--surface2);border:1px solid var(--line);border-radius:6px;pa
     <div id="fieldsOut" style="margin-top:10px"></div>
   </div>
   <div class="card">
+    <div class="row" style="justify-content:space-between"><b>Fontes automáticas</b><button class="btn sec" onclick="loadConnectors()">↻</button></div>
+    <p class="sub">Uma pasta monitorada ou uma caixa de e-mail (somente leitura). Novos arquivos entram e são lidos sozinhos.</p>
+    <div class="row">
+      <select id="connType" onchange="connFields()"><option value="folder">pasta monitorada</option><option value="imap">e-mail (IMAP)</option></select>
+      <span id="connForm" class="row" style="flex:1"></span>
+      <button class="btn" onclick="saveConnector()">Adicionar</button></div>
+    <div id="connList" style="margin-top:8px"></div>
+  </div>
+  <div class="card">
     <div class="row" style="justify-content:space-between"><b>Memória do projeto</b><button class="btn sec" onclick="loadMemory()">↻</button></div>
     <div class="row" style="margin-top:8px"><input type="text" id="memText" placeholder="lembrar que…" style="flex:1"><button class="btn sec" onclick="addMemory()">Anotar</button></div>
     <div id="memList" style="margin-top:8px"></div>
@@ -290,7 +299,7 @@ async function loadProjects(){const r=await api("/api/v1/projects");projects=r.p
 async function selectProject(){curProj=$("#projSel").value||null;if(!curProj){$("#srcList").innerHTML="";$("#projInfo").textContent="";return}
   const r=await api("/api/v1/projects/"+encodeURIComponent(curProj));const p=r.project;
   $("#projInfo").innerHTML=`${p.stats.sources} documento(s) · ${p.stats.chunks} trecho(s) · pasta <span class="mono">projects/${esc(p.id)}</span>${p.stats.lastIngestAt?` · última leitura ${new Date(p.stats.lastIngestAt).toLocaleString("pt-BR")}`:""}`;
-  renderSources(r.sources);loadMemory()}
+  renderSources(r.sources);loadMemory();loadConnectors()}
 function renderSources(list){$("#srcList").innerHTML=list.length?`<table><tr><th>estado</th><th>arquivo</th><th>tipo</th><th></th></tr>${list.map(s=>`<tr>
   <td><span class="tag ${s.status==="done"?"ok":s.status==="failed"?"bad":"warn"}">${s.status}</span></td>
   <td class="mono">${esc(s.name)}${s.pages?` <span class="sub">${s.pages} pág.</span>`:""}${s.error?`<div class="err" style="font-size:12px">${esc(s.error)}</div>`:""}${s.validation&&!s.validation.ok?`<div class="err" style="font-size:12px">${s.validation.issues.filter(i=>i.severity==="error").map(i=>esc(i.message)).join("<br>")}</div>`:""}</td>
@@ -337,6 +346,31 @@ async function loadMemory(){if(!curProj)return;const r=await api(`/api/v1/projec
 async function addMemory(){const text=$("#memText").value.trim();if(!text||!curProj)return;
   await api(`/api/v1/projects/${encodeURIComponent(curProj)}/memory`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({text,kind:"user"})});$("#memText").value="";loadMemory()}
 async function delMemory(id){await api(`/api/v1/projects/${encodeURIComponent(curProj)}/memory/${id}`,{method:"DELETE"});loadMemory()}
+
+// ───────────────────────── conectores (DOC-08)
+function connFields(){const t=$("#connType").value;
+  $("#connForm").innerHTML=t==="folder"
+    ?`<input type="text" id="connPath" placeholder="caminho da pasta (ex.: C:\\Notas)" style="flex:1"><input type="text" id="connPattern" placeholder="filtro opcional (regex)" style="width:160px">`
+    :`<input type="text" id="connHost" placeholder="imap.servidor.com" style="width:190px"><input type="text" id="connUser" placeholder="usuário" style="width:170px">
+      <input type="password" id="connPass" placeholder="senha ou senha de app" style="width:170px"><input type="text" id="connFrom" placeholder="só de (opcional)" style="width:160px">`}
+async function loadConnectors(){if(!curProj)return;connFields();
+  const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/connectors`);
+  $("#connList").innerHTML=r.connectors.length?`<table>${r.connectors.map(c=>`<tr>
+    <td><span class="tag">${esc(c.type)}</span></td>
+    <td class="mono" style="font-size:12px">${esc(c.type==="folder"?String(c.config.path||""):`${c.config.user||""}@${c.config.host||""}`)}${c.lastSyncAt?`<br><span class="sub">última: ${new Date(c.lastSyncAt).toLocaleString("pt-BR")}</span>`:""}</td>
+    <td><button class="btn sec" onclick="syncConnector('${c.id}')">sincronizar</button><button class="btn sec" onclick="delConnector('${c.id}')">remover</button></td></tr>`).join("")}</table>`
+  :"<span class='sub'>nenhuma fonte automática</span>"}
+async function saveConnector(){if(!curProj)return alert("escolha um projeto");const type=$("#connType").value;
+  const config=type==="folder"?{path:$("#connPath").value.trim(),pattern:$("#connPattern").value.trim()||undefined}
+    :{host:$("#connHost").value.trim(),user:$("#connUser").value.trim(),password:$("#connPass").value,from:$("#connFrom").value.trim()||undefined,limit:50};
+  if(type==="folder"&&!config.path)return alert("informe a pasta");
+  if(type==="imap"&&(!config.host||!config.user||!config.password))return alert("informe servidor, usuário e senha");
+  await api(`/api/v1/projects/${encodeURIComponent(curProj)}/connectors`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type,config})});
+  loadConnectors()}
+async function syncConnector(id){const r=await api(`/api/v1/projects/${encodeURIComponent(curProj)}/connectors/${id}/sync`,{method:"POST"});
+  onJob(r.job.id,j=>{if(j.status==="done"){loadConnectors();selectProject()}if(j.status==="failed")alert(j.error)})}
+async function delConnector(id){if(!confirm("Remover esta fonte automática?"))return;
+  await api(`/api/v1/projects/${encodeURIComponent(curProj)}/connectors/${id}`,{method:"DELETE"});loadConnectors()}
 
 // ───────────────────────── áudio (AUD-01…AUD-09)
 async function loadVoices(){const r=await api("/api/v1/voices?refresh=1");

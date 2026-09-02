@@ -11,13 +11,14 @@ e [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness).
 
 | Fase | Estado |
 |---|---|
-| 0 · Fundação portátil (launchers, Node portátil, servidor único, jobs, SSE, doctor) | **pronto** |
+| 0 · Fundação portátil (launchers, Node portátil, servidor único, jobs com histórico, SSE, doctor) | **pronto** |
 | 1 · Gerenciador de modelos (cole um link → plano → download validado → biblioteca) | **pronto** |
-| 2 · Motores: llama.cpp e stable-diffusion.cpp servindo `/v1` (chat com stream, embeddings, imagens) + provedores remotos por `provedor:modelo` | **pronto (mínimo)** |
-| UI mínima: Chat · Imagens · Modelos · Motores & APIs · Trabalhos | **pronto (mínimo)** |
-| Transcrição `/v1/audio/transcriptions` (whisper.cpp, WAV 16 kHz) | **pronto (mínimo)** |
-| Agente de código (DeepSeek Harness embutido, instalado com pnpm, provedor "local" = este Studio) | **pronto (mínimo)** |
-| 3 · Áudio completo · 4 · Documentos/OCR/RAG · 5 · UI React · 6 · Serviço/release | backlog em [`docs/SPRINTS.md`](docs/SPRINTS.md) |
+| 2 · Motores: llama.cpp e stable-diffusion.cpp servindo `/v1` + provedores remotos por `provedor:modelo` | **pronto** |
+| 3 · Áudio: transcrição com falantes, vozes (Piper/Kokoro/OuteTTS/clonagem), reuniões gravadas e resumidas, música | **pronto** |
+| 4 · Documentos: projetos, ingestão (PDF/Word/Excel/PowerPoint/e-mail/áudio), OCR, busca híbrida, perguntas com citações, notas fiscais validadas e cruzadas com planilha | **pronto** |
+| 5 · Interface: todas as telas na UI sem build (React fica como refinamento) | **pronto** |
+| 6 · Agente com MCP, vídeo, serviço nos 3 SO, empacotamento de release | **pronto** |
+| Rodar com GPU e pesos reais (promover receitas, `sd-server`, hashes do catálogo) | pendente na máquina do dono — [`docs/SPRINTS.md`](docs/SPRINTS.md) |
 
 O bug de download do projeto original (página HTML salva como modelo) está resolvido na raiz:
 nada entra na biblioteca sem passar pela inspeção de bytes e pela verificação de hash.
@@ -31,7 +32,8 @@ nada entra na biblioteca sem passar pela inspeção de bytes e pela verificaçã
 | Linux | `./start.sh` |
 
 Na primeira execução o launcher baixa um Node.js 24 portátil para `runtime/` (≈ 30–45 MB).
-A interface abre em `http://127.0.0.1:1420` (por enquanto uma página de status; a UI completa é a fase 5).
+A interface abre em `http://127.0.0.1:1420` com Chat, Imagens, Vídeo, Projetos, Áudio, Reuniões,
+Modelos, Motores & APIs, Agente, Configurações e Trabalhos. Guia de uso: [`docs/USO.md`](docs/USO.md).
 
 ```
 aistudio serve [--host 0.0.0.0] [--port N] [--no-open] [--api-key K] [--data-dir D]
@@ -41,6 +43,12 @@ aistudio engines list | adopt | install <motor> | start <modelo>
 aistudio providers list | key <id> <CHAVE>
 aistudio run "pergunta" [--model id]
 aistudio agent install | start | run "tarefa"
+aistudio projects new "Notas 2026" | add <projeto> <arquivos> | ingest | ask "pergunta" | extract | crosscheck
+aistudio speak "bom dia" --voice <id> --out ola.wav
+aistudio transcribe reuniao.mp4 --diarize --format srt --out reuniao.srt
+aistudio meeting devices | start --title "Diária" | stop
+aistudio config show | set <chave> <valor> | keys new
+aistudio service install | status | logs
 ```
 
 Primeira vez numa máquina que já tinha o Uncensored-Local-Studio ao lado: `aistudio engines adopt` e
@@ -67,8 +75,15 @@ npm test
 npm run typecheck
 ```
 
-Documentação: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/API.md`](docs/API.md) ·
-[`docs/SPRINTS.md`](docs/SPRINTS.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) · plano completo em [`PLANO.md`](PLANO.md).
+```bash
+npm run test:api     # sobe o servidor e checa os contratos (OpenAI, projetos, MCP)
+npm run release      # pacotes portáteis por sistema em dist/release/
+AISTUDIO_LIVE=1 npx vitest run server/src/models/civitai.live.test.ts   # teste que usa a internet
+```
+
+Documentação: [`docs/USO.md`](docs/USO.md) (guia do usuário) · [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ·
+[`docs/API.md`](docs/API.md) · [`docs/SPRINTS.md`](docs/SPRINTS.md) · [`docs/DECISIONS.md`](docs/DECISIONS.md) ·
+plano completo em [`PLANO.md`](PLANO.md).
 
 ## Layout
 
@@ -76,10 +91,13 @@ Documentação: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · [`docs/API.md`
 aistudio/
 ├── aistudio(.cmd)  start.*     launchers
 ├── server/src/                 servidor (TypeScript → dist/server.cjs)
-├── web/                        interface (React + Vite → web/dist)
+├── web/dist/index.html         interface (arquivo único, sem build)
 ├── models/recipes/             receitas de modelos (YAML)
 ├── engines/catalog.yaml        catálogo de builds dos motores por SO/GPU
-├── docs/                       arquitetura, API, sprints, decisões
+├── documents/doctypes/         tipos de documento (NF-e, boleto, contrato…) em YAML
+├── engines/python/             servidores Python do runner (clonagem de voz, música)
+├── packaging/                  gerador dos pacotes por sistema
+├── docs/                       arquitetura, API, uso, sprints, decisões
 ├── runtime/ engines/ models/   baixados sob demanda (fora do git)
 ├── projects/ voices/ data/     estado do usuário (fora do git)
 └── agent/                      DSH_HOME do agente

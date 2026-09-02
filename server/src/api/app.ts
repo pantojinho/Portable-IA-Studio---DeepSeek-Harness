@@ -120,6 +120,12 @@ export function createApp(ctx: StudioContext): Hono {
       await new Promise<void>((resolve) => stream.onAbort(resolve));
     }));
 
+  // Uma rota /api ou /v1 que não existe deve dizer isso em JSON — devolver o index.html
+  // deixava clientes (e o próprio agente) recebendo HTML no lugar de um erro.
+  const notFound = (c: import("hono").Context) => c.json({ error: `rota não encontrada: ${c.req.method} ${c.req.path}` }, 404);
+  app.all("/api/*", notFound);
+  app.all("/v1/*", notFound);
+
   // Static UI (web/dist) with SPA fallback.
   app.get("/*", async (c) => {
     const url = new URL(c.req.url);

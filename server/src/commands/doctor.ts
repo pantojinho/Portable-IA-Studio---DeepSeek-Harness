@@ -25,7 +25,14 @@ export async function runDoctor(ctx: StudioContext): Promise<void> {
   }
   console.log("");
   console.log("Motores instalados");
-  const engines = fs.existsSync(p.engines) ? fs.readdirSync(p.engines).filter((d) => fs.statSync(path.join(p.engines, d)).isDirectory()) : [];
+  // um motor "instalado" é o que tem install.json em engines/<motor>/<os-arch>/<backend>/
+  const engines: string[] = [];
+  for (const dir of fs.existsSync(p.engines) ? fs.readdirSync(p.engines) : []) {
+    const full = path.join(p.engines, dir);
+    if (!fs.statSync(full).isDirectory()) continue;
+    const backends = [...walkInstalls(full)];
+    if (backends.length) engines.push(`${dir} (${backends.join(", ")})`);
+  }
   if (engines.length === 0) console.log("  (nenhum ainda — serão baixados sob demanda)");
   for (const e of engines) console.log(`  ✔ ${e}`);
   console.log("");
@@ -40,4 +47,53 @@ export async function runDoctor(ctx: StudioContext): Promise<void> {
   }
   if (total === 0) console.log("  (nenhum ainda)");
   console.log("");
+
+  // Cada recurso diz, em uma linha, se está pronto e o que fazer quando não está.
+  console.log("Recursos");
+  const { Ffmpeg } = await import("../audio/ffmpeg.js");
+  const ffmpeg = new Ffmpeg(ctx).binary();
+  line("ffmpeg", Boolean(ffmpeg), ffmpeg ?? "aistudio engines install ffmpeg (áudio, reuniões e vídeo dependem dele)");
+
+  const text = ctx.models.registry.list("text").filter((m) => m.inspection.role === "main");
+  line("chat", text.length > 0, text.length ? `${text.length} modelo(s) de texto` : "aistudio models pull recipe:qwen3-4b");
+
+  const image = ctx.models.registry.list("image").filter((m) => ["main", "diffusion"].includes(m.inspection.role));
+  line("imagens", image.length > 0, image.length ? `${image.length} modelo(s)` : "aistudio models pull recipe:sdxl-base (ou cole um link na aba Modelos)");
+
+  const speech = ctx.models.registry.list("speech");
+  line("transcrição", speech.length > 0, speech.length ? `${speech.length} modelo(s) whisper` : "aistudio models pull recipe:whisper-large-v3-turbo");
+
+  const voices = safe(() => ctx.voices.list(true), []);
+  line("vozes", voices.length > 0, voices.length ? `${voices.length} voz(es): ${voices.slice(0, 3).map((v) => v.id).join(", ")}` : "aistudio models pull recipe:piper-pt-br-faber");
+
+  const ocr = ctx.models.registry.list("ocr").filter((m) => m.inspection.role === "main");
+  line("OCR", ocr.length > 0, ocr.length ? `${ocr.length} modelo(s) de visão` : "aistudio models pull recipe:glm-ocr");
+
+  const emb = ctx.models.registry.list("embeddings");
+  line("busca por significado", emb.length > 0, emb.length ? `${emb.length} modelo(s)` : "aistudio models pull recipe:qwen3-embedding-0.6b (sem ele a busca é só textual)");
+
+  const python = safe(() => ctx.python.systemPython(), null);
+  line("Python (clonagem/música)", Boolean(python), python ?? "opcional: aistudio engines install uv");
+
+  const projects = safe(() => ctx.projects.list(), []);
+  line("projetos", true, projects.length ? `${projects.length}: ${projects.slice(0, 3).map((x) => x.id).join(", ")}` : "nenhum ainda (aistudio projects new \"Meus documentos\")");
+
+  const keys = (await import("../core/auth.js")).readApiKeys(p, ctx.config);
+  line("chaves de API", true, keys.length ? `${keys.length} chave(s) — a API exige Authorization` : "nenhuma (só esta máquina acessa)");
+  console.log("");
+}
+
+function line(name: string, good: boolean, detail: string): void {
+  console.log(`  ${good ? "✔" : "·"} ${name.padEnd(24)} ${detail}`);
+}
+
+function safe<T>(fn: () => T, fallback: T): T { try { return fn(); } catch { return fallback; } }
+
+function* walkInstalls(dir: string, depth = 0): Generator<string> {
+  if (depth > 3) return;
+  for (const name of fs.readdirSync(dir)) {
+    const full = path.join(dir, name);
+    if (name === "install.json") { yield path.basename(dir); continue; }
+    try { if (fs.statSync(full).isDirectory()) yield* walkInstalls(full, depth + 1); } catch { /* sumiu no meio */ }
+  }
 }
