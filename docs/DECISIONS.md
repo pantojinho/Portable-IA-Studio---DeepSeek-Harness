@@ -3,6 +3,26 @@
 Formato: data · decisão · por quê · consequências. Adicione no topo. Mudar um contrato em
 `server/src/*/types.ts` exige uma entrada aqui.
 
+## 2026-09-02 · Extratores de documento escritos aqui, sem pdfjs/mammoth/xlsx/jszip
+Por quê: DOCX, XLSX e PPTX são ZIP+XML e o `node:zlib` já traz a única parte difícil (inflate); o PDF precisava só da camada de texto (com CMaps ToUnicode e object streams) para citar página. Quatro dependências grandes a menos num bundle que tem de ficar abaixo de 100 MB, e nenhuma delas com módulo nativo.
+Consequência: `documents/extract/` é nosso: ZIP, DOCX, XLSX, PPTX, PDF, EML (MIME, quoted-printable, anexos), HTML→Markdown e CSV, com testes sobre arquivos gerados no próprio teste. PDF sem camada de texto vira caso de OCR, que é o desenho da DOC-03.
+
+## 2026-09-02 · OCR rasteriza pelas imagens embutidas do PDF antes de pedir um rasterizador
+Por quê: PDF escaneado é quase sempre uma imagem por página (JPEG); extrair essas imagens não instala nada. Só quando não há imagem utilizável o Studio procura `mutool`/`pdftoppm` na máquina.
+Consequência: `documents/extract/pdfimages.ts` grava JPEG como está e recodifica bitmaps em PNG com `node:zlib`. Nada de canvas nativo.
+
+## 2026-09-02 · Busca vetorial funciona sem a extensão sqlite-vec
+Por quê: exigir uma extensão nativa para responder à primeira pergunta contradiz "copiar a pasta = mover a instalação". A varredura por cosseno em JS dá conta de milhares de trechos.
+Consequência: `core/db.ts` carrega `sqlite-vec` quando existe em `engines/sqlite-ext/` e cai para JS quando não. O catálogo traz a extensão como opcional (DOC-00).
+
+## 2026-09-02 · MCP escrito à mão (JSON-RPC sobre POST), sem o SDK oficial
+Por quê: o `@modelcontextprotocol/sdk` traria dependências e superfície que o Studio não usa; o Streamable HTTP que os clientes precisam é JSON-RPC simples.
+Consequência: `api/routes/mcp.ts` implementa initialize/tools-list/tools-call/ping; erro de ferramenta vira conteúdo com o motivo (o agente lê), método inválido vira erro de protocolo. Testado no api.test.ts.
+
+## 2026-09-02 · Contrato de áudio ganhou `words` no TranscriptSegment
+Por quê: AUD-01 pede timestamps por palavra (whisper `-ojf`), e a UI de reunião usa isso para alinhar a fala.
+Consequência: `audio/types.ts#TranscriptSegment.words?: TranscriptWord[]` — adição opcional, nada quebra.
+
 ## 2026-09-02 · dsh é instalado com pnpm (via `npx pnpm@11`), não com npm
 Por quê: `npm install @deepseek-ai/dsh@0.1.1-rc.2` ficou >25 min a 3,6 GB de RAM resolvendo a árvore (60+ pacotes do workspace); pnpm resolveu em ~1 min. Nativos opcionais (node-pty, koffi) liberados por `pnpm.onlyBuiltDependencies` no `agent/package.json`.
 Consequência: a primeira instalação do agente exige internet e ~1–3 min; o cache fica em `data/cache/npm`.
@@ -24,8 +44,9 @@ Por quê: `black-forest-labs/FLUX.1-schnell` virou `gated: auto` em 2026; `Comfy
 ## 2026-09-02 · Árvore do Hugging Face é paginada; caminhos exatos confirmam por HEAD
 Por quê: repos como `rhasspy/piper-voices` passam de 1000 entradas. `HfClient.tree` segue `Link: rel="next"` (até 25 páginas) e `resolveFrom` cai para `fileMeta` (HEAD) quando o path não aparece.
 
-## 2026-09-02 · Download em um fluxo, com resume; chunks paralelos ficam para MOD-07
-Por quê: um fluxo satura a CDN do HF em links domésticos e mantém o resume trivial. Paralelo só se medição mostrar ganho.
+## 2026-09-02 · Chunks paralelos existem, mas só quando ajudam (MOD-07)
+Por quê: um fluxo satura a CDN do HF em links domésticos; abrir conexões à toa piora em rede fraca. Agora o downloader decide: arquivo acima de 64 MiB, servidor que aceita `Range` e `downloads.parallelChunks > 1`.
+Consequência: `models/parallel.ts` grava cada faixa direto no `.part` pelo offset e registra as faixas prontas num `.part.json`, então retomar não rebaixa o que já caiu. Fora dessas condições, segue o fluxo único de sempre. Falta medir o ganho no link do dono para escolher o padrão (hoje 4).
 
 ## 2026-09-02 · `node:sqlite` em vez de better-sqlite3
 Por quê: invariante "sem módulos nativos npm" (bundle único, portátil). Node 24 traz `node:sqlite` estável e `loadExtension` (sqlite-vec vai em `engines/sqlite-ext/`).

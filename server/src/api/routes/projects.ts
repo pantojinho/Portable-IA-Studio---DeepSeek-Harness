@@ -194,6 +194,27 @@ export function projectsRoutes(ctx: StudioContext): { projects: Hono; doctypes: 
   });
   app.delete("/:id/watch", (c) => { ctx.projects.unwatch(c.req.param("id")); return c.json({ ok: true }); });
 
+  // ---------------------------------------------------------- conectores ---
+  app.get("/:id/connectors", (c) => {
+    try { return c.json({ connectors: ctx.connectors.list(c.req.param("id")).map((x) => ({ ...x, hasSecret: Boolean(ctx.connectors.secret(x.id)) })) }); }
+    catch (e) { return c.json({ error: (e as Error).message }, 404); }
+  });
+  app.post("/:id/connectors", async (c) => {
+    const body = await c.req.json().catch(() => null) as { id?: string; type?: string; config?: Record<string, unknown>; enabled?: boolean } | null;
+    if (!body?.type || !body.config) return c.json({ error: "informe 'type' (folder|imap) e 'config'" }, 400);
+    try { return c.json(ctx.connectors.save(c.req.param("id"), { id: body.id, type: body.type as "folder", config: body.config, enabled: body.enabled }), 201); }
+    catch (e) { return c.json({ error: (e as Error).message }, 422); }
+  });
+  app.post("/:id/connectors/:cid/sync", (c) => {
+    const id = c.req.param("id"); const cid = c.req.param("cid");
+    try {
+      ctx.projects.require(id);
+      const job = ctx.jobs.create("ingest", `Sincronizar conector ${cid}`, (j) => ctx.connectors.sync(id, cid, j), { projectId: id, connectorId: cid });
+      return c.json({ job }, 202);
+    } catch (e) { return c.json({ error: (e as Error).message }, 404); }
+  });
+  app.delete("/:id/connectors/:cid", (c) => ctx.connectors.delete(c.req.param("id"), c.req.param("cid")) ? c.json({ ok: true }) : c.json({ error: "conector não encontrado" }, 404));
+
   // ------------------------------------------------------------ doctypes ---
   const doctypes = new Hono();
   doctypes.get("/", (c) => c.json({ doctypes: ctx.doctypes.all(c.req.query("refresh") === "1") }));

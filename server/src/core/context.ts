@@ -12,6 +12,7 @@ import type { PythonRunner } from "../engines/pythonvenv.js";
 import type { MeetingService } from "../audio/meetings.js";
 import type { ProjectService } from "../documents/projects.js";
 import type { DocTypeStore } from "../documents/doctypes.js";
+import type { ConnectorStore } from "../documents/connectors.js";
 
 /** Everything a route, command or engine needs, passed explicitly (no globals). */
 export interface StudioContext {
@@ -38,6 +39,8 @@ export interface StudioContext {
   projects: ProjectService;
   /** DOC-07: document types, extraction and validation */
   doctypes: DocTypeStore;
+  /** DOC-08: folder and mailbox connectors */
+  connectors: ConnectorStore;
 }
 
 export async function createContext(paths: Paths, config: StudioConfig, version: string): Promise<StudioContext> {
@@ -67,5 +70,7 @@ export async function createContext(paths: Paths, config: StudioConfig, version:
   ctx.meetings = new MeetingService(ctx);
   ctx.projects = new ProjectService(ctx);
   ctx.doctypes = new DocTypeStore(ctx);
+  const { ConnectorStore } = await import("../documents/connectors.js");
+  ctx.connectors = new ConnectorStore(ctx);
   return ctx;
 }

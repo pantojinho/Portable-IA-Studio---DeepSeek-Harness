@@ -79,6 +79,7 @@ export class ModelService {
         try {
           const r = await downloadFile(f, dest, {
             headers, signal: job.signal, maxSpeed: this.ctx.config.downloads.maxSpeedMiBps ? this.ctx.config.downloads.maxSpeedMiBps * 1048576 : null,
+            parallelChunks: this.ctx.config.downloads.parallelChunks,
             onProgress: (p) => {
               const cur = doneBytes + p.received;
               job.setProgress(total ? Math.min(0.999, cur / total) : -1, `${label}: ${p.phase === "verifying" ? "verificando" : p.phase === "done" ? "ok" : `${fmtBytes(p.received)}${p.total ? ` / ${fmtBytes(p.total)}` : ""} · ${fmtBytes(p.speedBps)}/s${p.etaSec != null ? ` · ${eta(p.etaSec)}` : ""}`}`);

@@ -294,23 +294,45 @@ recipes:
   engine: piper
   status: draft
   license: mit
+  description: Voz masculina brasileira, rápida na CPU. Pacote pronto do sherpa-onnx (modelo + tokens + espeak-ng-data).
   match: { repos: [rhasspy/piper-voices] }
   files:
-    - { role: voice, slot: voice, subdir: piper, from: { repo: rhasspy/piper-voices, path: pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx } }
-    - { role: config, slot: config, subdir: piper, from: { repo: rhasspy/piper-voices, path: pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json } }
+    - role: voice
+      slot: pack
+      subdir: piper
+      extract: true
+      from: { url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-pt_BR-faber-medium.tar.bz2" }
+  notes: ["O pacote traz o espeak-ng-data, que o Piper precisa para virar fonema.", "Vozes de outros idiomas: troque o nome do arquivo pela voz desejada na mesma release tts-models."]
+
+- id: piper-pt-br-edresson
+  name: Piper · pt-BR · Edresson (low)
+  kind: tts
+  engine: piper
+  status: draft
+  license: cc-by-4.0
+  description: Alternativa leve em português do Brasil.
+  files:
+    - role: voice
+      slot: pack
+      subdir: piper
+      extract: true
+      from: { url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-pt_BR-edresson-low.tar.bz2" }
 
 - id: kokoro-82m
-  name: Kokoro 82M (ONNX)
+  name: Kokoro 82M multilíngue (ONNX)
   kind: tts
   engine: kokoro
   status: draft
   license: apache-2.0
+  description: Muitas vozes num pacote só, incluindo português do Brasil. Roda na CPU pelo sherpa-onnx.
   match: { repos: [hexgrad/Kokoro-82M, onnx-community/Kokoro-82M-v1.0-ONNX] }
   files:
-    - { role: main, slot: model, subdir: kokoro, from: { repo: onnx-community/Kokoro-82M-v1.0-ONNX, path: onnx/model_q8f16.onnx } }
-    - { role: voice, slot: voices, subdir: kokoro/voices, from: { repo: onnx-community/Kokoro-82M-v1.0-ONNX, glob: "voices/*.bin" } }
-    - { role: config, slot: config, subdir: kokoro, from: { repo: onnx-community/Kokoro-82M-v1.0-ONNX, glob: "*.json" }, optional: true }
-  notes: ["Vozes PT-BR: pf_dora (feminina), pm_alex e pm_santa (masculinas)."]
+    - role: voice
+      slot: pack
+      subdir: kokoro
+      extract: true
+      from: { url: "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-multi-lang-v1_0.tar.bz2" }
+  notes: ["Vozes PT-BR: pf_dora (feminina), pm_alex e pm_santa (masculinas).", "Cada falante do pacote vira uma voz separada na aba Áudio."]
 
 - id: f5-tts-pt-br
   name: F5-TTS pt-BR (clonagem de voz)
@@ -324,3 +346,35 @@ recipes:
   files:
     - { role: main, slot: model, subdir: f5tts, from: { repo: firstpixel/F5-TTS-pt-br, path: pt-br/model_last.safetensors } }
   notes: ["Precisa do motor Python F5-TTS (tarefa AUD-05) e do vocab/vocoder do SWivid/F5-TTS.", "Licença não comercial."]
+
+- id: whisper-small-tdrz
+  name: Whisper small com falantes (tinydiarize)
+  kind: speech
+  engine: whispercpp
+  status: community
+  license: mit
+  description: Marca a troca de falante durante a transcrição (-tdrz). É o modelo que as Reuniões preferem.
+  match: { repos: [akashmjn/tinydiarize-whisper.cpp] }
+  files:
+    - { role: main, slot: model, from: { repo: ggerganov/whisper.cpp, path: ggml-small.en-tdrz.bin } }
+  notes: ["O modelo tinydiarize é em inglês; para PT-BR use o whisper-large-v3-turbo (sem falantes) ou aceite a marcação aproximada."]
+
+- id: esrgan-4x
+  name: Real-ESRGAN x4 (ampliar imagem)
+  kind: image
+  engine: sdcpp
+  status: draft
+  license: bsd-3-clause
+  description: Modelo de upscale usado por POST /api/v1/generate/upscale.
+  files:
+    - { role: upscaler, slot: upscaler, subdir: upscale, from: { url: "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth" } }
+
+- id: lora-exemplo-civitai
+  name: LoRA de exemplo (CivitAI)
+  kind: image
+  engine: sdcpp
+  status: planned
+  description: Modelo de como declarar um LoRA. Troque o id da versão pelo LoRA que você quer; o arquivo vai para models/lora e o prompt usa <lora:nome:0.8>.
+  files:
+    - { role: lora, slot: lora, kind: image, subdir: lora, from: { url: "https://civitai.com/api/download/models/000000" } }
+  notes: ["Baixar de CivitAI pode exigir token: aistudio models token civitai <TOKEN>.", "sd.cpp lê <lora:arquivo-sem-extensao:peso> no prompt; o Studio já aponta --lora-model-dir para models/lora."]
