@@ -28,19 +28,28 @@ Status por endpoint: **pronto** · *planejado (ID da tarefa)*.
 | GET | `/api/v1/models/migrate/scan?source=` · POST `/migrate/import` `{paths}` | migração de instalação antiga |
 | GET/PUT | `/api/v1/models/tokens` `{hf, civitai}` | tokens (guardados em `data/secrets`) |
 
-## Motores — *ENG-09*
-`GET /api/v1/engines` (instalados, rodando, VRAM) · `POST /engines/:id/install` · `POST /engines/:id/start`
-`{model, settings}` · `POST /engines/instances/:id/stop` · `GET /engines/catalog`.
+## Motores — pronto
+`GET /api/v1/engines` (instalados, rodando, backend preferido) · `POST /engines/adopt` (binários do ULS por hardlink) ·
+`POST /engines/:id/install?backend=` (job) · `POST /engines/start` `{model, settings}` · `POST /engines/instances/:id/stop` ·
+`POST /engines/stop-all` · `GET /engines/providers` · `PUT /engines/providers/:id/key` `{key}`.
 
-## OpenAI-compatível `/v1` — *ENG-06/07/08, AUD-01/02*
-`GET /v1/models` · `POST /v1/chat/completions` (stream SSE) · `POST /v1/completions` · `POST /v1/embeddings`
-· `POST /v1/images/generations` `{prompt, model, size, n, response_format}` · `POST /v1/images/edits` ·
-`POST /v1/audio/speech` `{input, voice, response_format}` · `POST /v1/audio/transcriptions` (multipart) ·
-`POST /v1/audio/translations`. Campo `model` aceita id da biblioteca (`text/Qwen3-4B-Q4_K_M.gguf`) ou id de receita.
+## OpenAI-compatível `/v1` — pronto (mínimo)
+`GET /v1/models` (biblioteca + provedores com chave + `running`) · `POST /v1/chat/completions` (stream SSE passthrough) ·
+`POST /v1/completions` · `POST /v1/embeddings` · `POST /v1/rerank` · `POST /v1/images/generations`
+`{prompt, model?, size, n, steps, cfg, seed, negative_prompt, response_format: b64_json|url}` ·
+`POST /v1/audio/transcriptions` (multipart `file` WAV 16 kHz, `model?`, `language?`, `response_format: json|text|srt|verbose_json`).
+Campo `model` aceita id da biblioteca (`text/Qwen3-4B-Q4_K_M.gguf`), id de receita, ou `provedor:modelo` (openai, anthropic, deepseek, openrouter, groq, ollama).
+Planejados: `/v1/images/edits` (ENG-05b) · `/v1/audio/speech` (AUD-02) · `/v1/audio/translations` (AUD-01).
 
-## Geração nativa — *ENG-10, VID-01, AUD-09*
-`POST /api/v1/generate/image` (todas as opções do sd.cpp; job) · `POST /api/v1/generate/video` ·
-`POST /api/v1/audio/music` · `GET /api/v1/outputs` (galeria com metadados) · `DELETE /api/v1/outputs/:id`.
+## Geração nativa — pronto (mínimo)
+`POST /api/v1/generate/image` `{prompt, model?, negative, width, height, steps, cfg, seed, sampler, initImage, strength, mask}` (job) ·
+`GET /api/v1/outputs` (galeria com metadados) · `GET /outputs/file?path=` · `DELETE /outputs/:id`.
+Planejados: `POST /api/v1/generate/video` (VID-01) · `POST /api/v1/audio/music` (AUD-09).
+
+## Agente — pronto (mínimo)
+`GET /api/v1/agent` (estado) · `POST /agent/install` (job, pnpm) · `POST /agent/start` (sobe `dsh web`, responde quando pronto) ·
+`POST /agent/stop` · `GET /agent/settings` (regrava `agent/settings.yaml`) · `POST /agent/run` `{task, workspace?}` (job headless).
+A UI do dsh fica em `state.url` (3080) e é embutida na aba Agente.
 
 ## Vozes e reuniões — *AUD-02, AUD-08*
 `GET/POST /api/v1/voices` · `POST /voices/:id/preview` · `DELETE /voices/:id` · `POST /voices/clone` (multipart: sample) ·
@@ -54,10 +63,6 @@ Status por endpoint: **pronto** · *planejado (ID da tarefa)*.
 `GET/POST/DELETE /projects/:id/memory` · `POST /projects/:id/extract` `{sourceIds, docType?}` ·
 `POST /projects/:id/validate` · `POST /projects/:id/crosscheck` `{tablePath, docType}` ·
 `GET /api/v1/doctypes` · `POST /api/v1/ocr` (multipart; job) · `GET /ocr/:jobId/result?format=md|json|csv`.
-
-## Agente — *AGT-01…AGT-05*
-`GET /api/v1/agent` (estado) · `POST /agent/install` · `POST /agent/start|stop` · `POST /agent/run` `{task, workspace}` ·
-`GET /api/v1/agent/settings` · `PUT /agent/settings`. UI do dsh servida em `http://127.0.0.1:3080` e embutida na aba Agente.
 
 ## MCP — *AGT-04*
 `POST /mcp` (streamable HTTP). Ferramentas: `chat`, `generate_image`, `generate_video`, `speak`, `transcribe`, `ocr_file`,

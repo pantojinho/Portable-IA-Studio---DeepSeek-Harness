@@ -16,7 +16,7 @@ e [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness).
 | 2 · Motores: llama.cpp e stable-diffusion.cpp servindo `/v1` (chat com stream, embeddings, imagens) + provedores remotos por `provedor:modelo` | **pronto (mínimo)** |
 | UI mínima: Chat · Imagens · Modelos · Motores & APIs · Trabalhos | **pronto (mínimo)** |
 | Transcrição `/v1/audio/transcriptions` (whisper.cpp, WAV 16 kHz) | **pronto (mínimo)** |
-| Agente de código (DeepSeek Harness embutido) | código pronto, instalação do dsh em validação |
+| Agente de código (DeepSeek Harness embutido, instalado com pnpm, provedor "local" = este Studio) | **pronto (mínimo)** |
 | 3 · Áudio completo · 4 · Documentos/OCR/RAG · 5 · UI React · 6 · Serviço/release | backlog em [`docs/SPRINTS.md`](docs/SPRINTS.md) |
 
 O bug de download do projeto original (página HTML salva como modelo) está resolvido na raiz:
