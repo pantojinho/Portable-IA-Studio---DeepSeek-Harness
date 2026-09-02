@@ -8,6 +8,7 @@ import { EngineRegistry } from "./registry.js";
 import { Supervisor } from "./supervisor.js";
 import { LlamaCppAdapter } from "./llamacpp.js";
 import { SdCppAdapter } from "./sdcpp.js";
+import { WhisperCppAdapter } from "./whispercpp.js";
 import type { EngineId, EngineInstance, EngineInstall } from "./types.js";
 import { logger } from "../core/log.js";
 
@@ -26,6 +27,7 @@ export class EngineService {
     this.supervisor = new Supervisor(ctx, this.registry);
     this.registry.register(new LlamaCppAdapter(ctx, this.installer, () => this.supervisor));
     this.registry.register(new SdCppAdapter(ctx, this.installer));
+    this.registry.register(new WhisperCppAdapter(ctx, this.installer));
   }
 
   async preferredBackend(): Promise<Backend> {
