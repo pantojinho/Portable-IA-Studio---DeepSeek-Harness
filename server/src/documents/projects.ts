@@ -247,8 +247,10 @@ export class ProjectService {
     const s = this.source(id, sourceId);
     if (!s) return false;
     const db = this.db(id);
-    db.prepare("DELETE FROM chunks WHERE sourceId=?").run(sourceId);
+    // o FTS primeiro: a subconsulta lê `chunks`, então apagar os chunks antes deixaria o texto
+    // do documento para sempre no índice
     db.prepare("DELETE FROM chunks_fts WHERE id IN (SELECT id FROM chunks WHERE sourceId=?)").run(sourceId);
+    db.prepare("DELETE FROM chunks WHERE sourceId=?").run(sourceId);
     db.prepare("DELETE FROM sources WHERE id=?").run(sourceId);
     for (const f of [s.path, s.derived.markdown, s.derived.ocrJson, s.derived.transcript]) {
       if (f && fs.existsSync(f) && f.startsWith(this.dir(id))) fs.rmSync(f, { force: true });

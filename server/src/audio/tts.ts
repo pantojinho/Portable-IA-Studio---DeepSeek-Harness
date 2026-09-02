@@ -100,7 +100,9 @@ export class TtsService {
       }
       default: {
         // AUD-06: Chatterbox, XTTS-v2 and F5-TTS run in a Python venv managed by the Studio
+        // voice.engine é o PACOTE (tts-clone); params.cloneEngine é o MODELO (chatterbox, xtts, f5tts)
         const result = await this.ctx.python.tts(voice.engine, {
+          engine: typeof voice.params?.cloneEngine === "string" ? voice.params.cloneEngine : undefined,
           text, output, refWav: voice.sample ? path.join(this.ctx.paths.voices, voice.id, path.basename(voice.sample)) : undefined,
           language: voice.language, speed: req.speed, params: voice.params ?? {},
         }, req.signal);

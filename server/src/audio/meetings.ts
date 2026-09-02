@@ -12,7 +12,7 @@ import type { Meeting, Transcript, TranscriptSegment } from "./types.js";
 
 const log = logger("meetings");
 
-interface Live { meeting: Meeting; recording: Recording; timer: NodeJS.Timeout; consumedSec: number; busy: boolean }
+interface Live { meeting: Meeting; recording: Recording; timer: NodeJS.Timeout; consumedSec: number; busy: Promise<void> | null }
 
 /**
  * AUD-08. A meeting is: record mic and/or system audio → transcribe in windows while it happens →
@@ -25,7 +25,13 @@ export class MeetingService {
 
   constructor(private ctx: StudioContext) {}
 
-  private file(id: string): string { return path.join(this.ctx.paths.recordings, `${id}.json`); }
+  /** O id vem da URL e vira caminho: só o formato que nós geramos passa. */
+  private safeId(id: string): string {
+    if (!/^[0-9A-Za-z_-]{1,64}$/.test(id)) throw new Error(`identificador de reunião inválido: '${id}'`);
+    return id;
+  }
+
+  private file(id: string): string { return path.join(this.ctx.paths.recordings, `${this.safeId(id)}.json`); }
 
   list(): Meeting[] {
     const out: Meeting[] = [];
@@ -38,6 +44,7 @@ export class MeetingService {
   }
 
   get(id: string): Meeting | null {
+    try { this.safeId(id); } catch { return null; }
     const live = this.live.get(id);
     if (live) return live.meeting;
     try { return JSON.parse(fs.readFileSync(this.file(id), "utf8")) as Meeting; } catch { return null; }
@@ -85,7 +92,7 @@ export class MeetingService {
     const windowSec = Math.max(10, this.ctx.config.audio.meetingWindowSec);
     const timer = setInterval(() => { void this.consumeWindow(id, { language: o.language, diarize: o.diarize ?? true }); }, windowSec * 1000);
     timer.unref();
-    this.live.set(id, { meeting, recording, timer, consumedSec: 0, busy: false });
+    this.live.set(id, { meeting, recording, timer, consumedSec: 0, busy: null });
     log.info(`reunião ${id} gravando (${meeting.sources.join("+")}) → ${audioPath}`);
     return meeting;
   }
@@ -93,8 +100,20 @@ export class MeetingService {
   /** Transcribe the part of the recording we have not read yet and publish the new lines. */
   private async consumeWindow(id: string, opts: { language?: string; diarize?: boolean }, final = false): Promise<void> {
     const live = this.live.get(id);
-    if (!live || (live.busy && !final)) return;
-    live.busy = true;
+    if (!live) return;
+    if (live.busy) {
+      // uma janela já está sendo transcrita: a periódica desiste, a final espera a vez
+      if (!final) return;
+      await live.busy.catch(() => { /* o erro dela já foi registrado */ });
+    }
+    const run = this.readWindow(id, opts, final);
+    live.busy = run;
+    try { await run; } finally { if (this.live.get(id) === live) live.busy = null; }
+  }
+
+  private async readWindow(id: string, opts: { language?: string; diarize?: boolean }, final: boolean): Promise<void> {
+    const live = this.live.get(id);
+    if (!live) return;
     const ffmpeg = new Ffmpeg(this.ctx);
     try {
       const total = (await ffmpeg.durationSec(live.meeting.audioPath!)) ?? 0;
@@ -118,7 +137,7 @@ export class MeetingService {
       this.save(live.meeting);
     } catch (e) {
       log.warn(`janela da reunião ${id}: ${(e as Error).message}`);
-    } finally { live.busy = false; }
+    }
   }
 
   /** Stop, transcribe the tail, summarise, and (when asked) file it in a project. */

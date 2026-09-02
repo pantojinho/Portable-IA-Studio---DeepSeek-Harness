@@ -147,6 +147,14 @@ describe("API — projetos e MCP", () => {
     expect((await get("/api/v1/projects/nao-existe")).status).toBe(404);
   });
 
+  it("não deixa a URL virar caminho de arquivo", async () => {
+    // %2F é decodificado dentro do segmento: sem validação isso lia qualquer .json do disco
+    const traversal = await get("/api/v1/projects/api-teste/chats/..%2F..%2F..%2Fdata%2Fmodel-settings");
+    expect(traversal.status).toBe(400);
+    expect((await traversal.json() as { error: string }).error).toMatch(/inválido/i);
+    expect((await get("/api/v1/meetings/..%2F..%2Fconfig")).status).toBe(404);
+  });
+
   it("expõe os tipos de documento como dados", async () => {
     const data = await (await get("/api/v1/doctypes")).json() as { doctypes: { id: string; validators: string[] }[] };
     const nfe = data.doctypes.find((d) => d.id === "nfe");

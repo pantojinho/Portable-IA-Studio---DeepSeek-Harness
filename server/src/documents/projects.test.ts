@@ -76,6 +76,23 @@ describe("documents/projects (DOC-01/02/04)", () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  it("remover um documento tira também o texto do índice de busca", async () => {
+    const p = ctx.projects.create({ name: "Remoção" });
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "docs-"));
+    const md = path.join(tmpDir, "sigiloso.md");
+    fs.writeFileSync(md, "# Documento sigiloso\n\nPalavra rara: xilofone-secreto.");
+    const { sources } = await ctx.projects.addSourceFiles(p.id, [md], { ingest: false });
+    await ingestSources(ctx, p.id, {});
+    expect((await searchProject(ctx, { projectId: p.id, query: "xilofone-secreto", hybrid: false })).length).toBeGreaterThan(0);
+
+    expect(ctx.projects.removeSource(p.id, sources[0]!.id)).toBe(true);
+    const db = ctx.projects.db(p.id);
+    expect(Number((db.prepare("SELECT count(*) c FROM chunks").get() as { c: number }).c)).toBe(0);
+    expect(Number((db.prepare("SELECT count(*) c FROM chunks_fts").get() as { c: number }).c)).toBe(0);
+    expect(await searchProject(ctx, { projectId: p.id, query: "xilofone-secreto", hybrid: false })).toEqual([]);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
   it("guarda memória do projeto e espelha em memory.md", () => {
     const p = ctx.projects.create({ name: "Memória" });
     addMemory(ctx, p.id, { text: "O contador é o Sr. Silva.", kind: "user" });

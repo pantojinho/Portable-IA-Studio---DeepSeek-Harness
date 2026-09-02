@@ -104,6 +104,8 @@ export async function downloadInChunks(
     };
     report("connecting");
 
+    // o teto de velocidade é do arquivo, não da conexão: cada trabalhador pega sua fatia
+    const limiter = opts.maxSpeed ? makeLimiter(opts.maxSpeed) : null;
     let sniffed = false;
     const queue = ranges.filter((r) => !done.has(r.index));
     let next = 0;
@@ -126,6 +128,7 @@ export async function downloadInChunks(
             sniffed = true;
           }
           fs.writeSync(fd, buf, 0, buf.length, offset);
+          if (limiter) await limiter(buf.length);
           offset += buf.length;
           received += buf.length;
           const now = Date.now();
@@ -152,6 +155,19 @@ export async function downloadInChunks(
   } finally {
     fs.closeSync(fd);
   }
+}
+
+/** Mesmo balde do downloader de fluxo único, compartilhado entre os trabalhadores. */
+function makeLimiter(bps: number) {
+  let allowance = bps;
+  let last = Date.now();
+  return async (n: number) => {
+    const now = Date.now();
+    allowance = Math.min(bps, allowance + ((now - last) / 1000) * bps);
+    last = now;
+    allowance -= n;
+    if (allowance < 0) await new Promise((r) => setTimeout(r, (-allowance / bps) * 1000));
+  };
 }
 
 function rangeSize(ranges: ChunkRange[], index: number): number {

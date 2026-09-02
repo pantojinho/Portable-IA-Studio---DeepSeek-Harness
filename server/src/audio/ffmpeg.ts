@@ -163,6 +163,13 @@ export class Recording {
   stop(): Promise<string> {
     if (this.stopped) return Promise.resolve(this.file);
     this.stopped = true;
+    // o ffmpeg pode já ter morrido (dispositivo errado, permissão): sem isto o 'exit' nunca vem
+    // e a reunião ficava presa em "parando" para sempre
+    if (this.child.exitCode !== null || this.child.signalCode !== null) {
+      return fs.existsSync(this.file) && fs.statSync(this.file).size > 1024
+        ? Promise.resolve(this.file)
+        : Promise.reject(new Error(`a gravação terminou sozinha (código ${this.child.exitCode ?? this.child.signalCode}): ${lastLines(this.stderr(), 3)}`));
+    }
     return new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => { try { this.child.kill("SIGKILL"); } catch { /* */ } }, 8000);
       this.child.once("exit", (code) => {

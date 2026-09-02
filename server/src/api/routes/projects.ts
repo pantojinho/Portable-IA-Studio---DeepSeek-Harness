@@ -124,7 +124,10 @@ export function projectsRoutes(ctx: StudioContext): { projects: Hono; doctypes: 
 
   app.get("/:id/chats", (c) => c.json({ chats: listChats(ctx, c.req.param("id")) }));
   app.get("/:id/chats/:chatId", (c) => {
-    const file = path.join(ctx.projects.chatsDir(c.req.param("id")), `${c.req.param("chatId")}.json`);
+    // o id vem da URL: só aceita o formato que nós geramos (uuid), nunca um caminho
+    const chatId = c.req.param("chatId");
+    if (!/^[a-zA-Z0-9_-]{1,64}$/.test(chatId)) return c.json({ error: "identificador de conversa inválido" }, 400);
+    const file = path.join(ctx.projects.chatsDir(c.req.param("id")), `${chatId}.json`);
     if (!fs.existsSync(file)) return c.json({ error: "conversa não encontrada" }, 404);
     return c.json(JSON.parse(fs.readFileSync(file, "utf8")));
   });

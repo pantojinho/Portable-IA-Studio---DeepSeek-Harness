@@ -80,7 +80,8 @@ export class SdCppAdapter implements EngineAdapter {
 
   async run(instance: EngineInstance, req: RunRequest): Promise<RunResult> {
     const p = req.input as unknown as ImageParams;
-    if (!p.prompt) throw new Error("prompt é obrigatório");
+    // upscale não descreve nada: só amplia a imagem que veio
+    if (!p.prompt && req.task !== "upscale") throw new Error("prompt é obrigatório");
     const exe = String(instance.settings.exe);
     const outDir = path.join(this.ctx.paths.outputs, "images");
     fs.mkdirSync(outDir, { recursive: true });
@@ -90,7 +91,7 @@ export class SdCppAdapter implements EngineAdapter {
     const recipeArgs = (instance.settings.recipeArgs as string[] | null) ?? null;
     const args = ["-M", req.task === "img2img" || req.task === "inpaint" ? "img_gen" : req.task === "upscale" ? "upscale" : req.task === "txt2vid" || req.task === "img2vid" ? "vid_gen" : "img_gen",
       ...this.modelArgs(instance.model!, instance.companions, recipeArgs),
-      "-p", p.prompt, "-o", `${base}.png`, "--seed", String(seed), "-v"];
+      ...(p.prompt ? ["-p", p.prompt] : []), "-o", `${base}.png`, "--seed", String(seed), "-v"];
     if (p.negative) args.push("-n", p.negative);
     if (p.width) args.push("-W", String(p.width)); if (p.height) args.push("-H", String(p.height));
     if (p.steps) args.push("--steps", String(p.steps)); if (p.cfg != null) args.push("--cfg-scale", String(p.cfg));

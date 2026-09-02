@@ -95,7 +95,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=${this.ctx.paths.root}
-ExecStart=${[exe, ...args].join(" ")}
+ExecStart=${systemdCommand(exe, args)}
 Restart=on-failure
 RestartSec=5
 
@@ -172,6 +172,15 @@ function run(exe: string, args: string[], tolerant = false): string {
     throw new Error(`${exe} ${args[0]} falhou: ${out.trim().split("\n").slice(0, 3).join(" | ") || `código ${r.status}`}`);
   }
   return out;
+}
+
+/**
+ * A pasta do dono se chama "Portable IA Studio": com espaço. O systemd só entende espaço em
+ * ExecStart se o argumento estiver entre aspas (e a aspa dentro do valor, escapada).
+ */
+export function systemdCommand(exe: string, args: string[]): string {
+  const quote = (a: string) => (/[\s"'\\]/.test(a) ? `"${a.replace(/(["\\])/g, "\\$1")}"` : a);
+  return [exe, ...args].map(quote).join(" ");
 }
 
 function escapeXml(s: string): string {

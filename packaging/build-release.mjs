@@ -105,16 +105,42 @@ for (const platform of platforms) {
   fs.writeFileSync(path.join(stage, "VERSION"), `${version}\n`);
   fs.writeFileSync(path.join(stage, "LEIA-ME.txt"), leiaMe(platform, version));
 
-  const zip = path.join(outDir, `${name}.zip`);
-  fs.rmSync(zip, { force: true });
-  // bsdtar (Windows 10+, macOS, Linux) escreve zip sem depender de nada instalado
-  run("tar", ["-a", "-c", "-f", zip, name], { cwd: outDir });
-  const size = (fs.statSync(zip).size / 1048576).toFixed(1);
-  console.log(`  ✔ ${path.relative(root, zip)} (${size} MB)`);
+  const archive = pack(outDir, name);
+  const size = (fs.statSync(archive).size / 1048576).toFixed(1);
+  console.log(`  ✔ ${path.relative(root, archive)} (${size} MB)`);
   fs.rmSync(stage, { recursive: true, force: true });
 }
 
 console.log(`\nPronto. Os pacotes estão em ${path.relative(root, outDir)}/`);
+
+/**
+ * Compacta a pasta preparada. O `tar -a` só escreve ZIP de verdade quando o tar é o bsdtar
+ * (Windows 10+, macOS); o GNU tar do Linux ignora a extensão e gera um .tar com nome .zip, que
+ * ninguém consegue abrir. Então: `zip` quando existir, senão bsdtar, senão .tar.gz honesto.
+ */
+function pack(outDir, name) {
+  const zip = path.join(outDir, `${name}.zip`);
+  fs.rmSync(zip, { force: true });
+  if (has("zip")) {
+    run("zip", ["-r", "-q", zip, name], { cwd: outDir });
+    return zip;
+  }
+  const version = spawnSync("tar", ["--version"], { encoding: "utf8" }).stdout ?? "";
+  if (/bsdtar/i.test(version)) {
+    run("tar", ["-a", "-c", "-f", zip, name], { cwd: outDir });
+    return zip;
+  }
+  const tgz = path.join(outDir, `${name}.tar.gz`);
+  fs.rmSync(tgz, { force: true });
+  console.log("  (sem zip nem bsdtar nesta máquina: gerando .tar.gz)");
+  run("tar", ["-czf", tgz, name], { cwd: outDir });
+  return tgz;
+}
+
+function has(exe) {
+  const probe = spawnSync(process.platform === "win32" ? "where" : "which", [exe], { encoding: "utf8" });
+  return probe.status === 0;
+}
 
 function leiaMe(platform, version) {
   const start = platform === "win" ? "start.bat (duplo clique)" : platform === "mac" ? "start.command (duplo clique)" : "./start.sh";

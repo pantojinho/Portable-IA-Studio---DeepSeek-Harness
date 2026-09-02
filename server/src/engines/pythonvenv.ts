@@ -140,12 +140,17 @@ export class PythonRunner {
     });
     proc.once("exit", (code) => { fs.closeSync(logFile); this.servers.delete(id); log.info(`servidor ${id} saiu (código ${code})`); });
     const t0 = Date.now();
+    let healthy = false;
     while (Date.now() - t0 < 120_000) {
       if (proc.exitCode !== null) throw new Error(`o servidor Python '${id}' terminou antes de responder (código ${proc.exitCode}). Veja data/logs/python-${id}.log`);
-      try { const r = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(1500) }); if (r.ok) break; } catch { /* subindo */ }
+      try { const r = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(1500) }); if (r.ok) { healthy = true; break; } } catch { /* subindo */ }
       await new Promise((r) => setTimeout(r, 400));
     }
-    if (proc.exitCode !== null) throw new Error(`servidor Python '${id}' não subiu`);
+    if (!healthy) {
+      // vivo mas mudo: matar e contar o que o log diz vale mais do que registrar como pronto
+      try { proc.kill(); } catch { /* já morreu */ }
+      throw new Error(`o servidor Python '${id}' subiu mas não respondeu /health em 2 min. ${tail(path.join(this.ctx.paths.logs, `python-${id}.log`))}`);
+    }
     this.servers.set(id, { proc, baseUrl, startedAt: Date.now(), lastUsedAt: Date.now() });
     log.info(`${id} servindo em ${baseUrl}`);
     return baseUrl;
@@ -159,12 +164,21 @@ export class PythonRunner {
     try { return JSON.parse(text) as T; } catch { throw new Error(`${id}${route} devolveu algo que não é JSON: ${text.slice(0, 200)}`); }
   }
 
-  /** AUD-06: cloning engines all answer the same POST /tts. */
-  async tts(engine: string, opts: { text: string; output: string; refWav?: string; language?: string; speed?: number; params: Record<string, unknown> }, signal?: AbortSignal): Promise<string> {
-    const id = engine.startsWith("python:") ? engine.slice(7) : engine;
+  /**
+   * AUD-06: cloning engines all answer the same POST /tts. Two different names are in play — the
+   * venv package that hosts the server (`tts-clone`) and the model inside it (chatterbox, xtts,
+   * f5tts). Sending the package name as the engine made the server answer "motor desconhecido".
+   */
+  async tts(
+    pack: string,
+    opts: { engine?: string; text: string; output: string; refWav?: string; language?: string; speed?: number; params: Record<string, unknown> },
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const id = pack.startsWith("python:") ? pack.slice(7) : pack;
     const pkg = this.catalog()[id];
-    if (!pkg) throw new Error(`não sei falar com o motor '${engine}'. Motores de voz: piper, kokoro, outetts, ${Object.keys(this.catalog()).join(", ")}.`);
-    const r = await this.call<{ file: string }>(id, "/tts", { ...opts, engine: id, ref_wav: opts.refWav }, signal);
+    if (!pkg) throw new Error(`não sei falar com o motor '${pack}'. Motores de voz: piper, kokoro, outetts, ${Object.keys(this.catalog()).join(", ")}.`);
+    const engine = opts.engine ?? String(opts.params.cloneEngine ?? "") ?? "";
+    const r = await this.call<{ file: string }>(id, "/tts", { ...opts, engine: engine || "chatterbox", ref_wav: opts.refWav }, signal);
     return r.file;
   }
 
@@ -203,6 +217,14 @@ function run(exe: string, args: string[], env: Record<string, string> = {}): voi
   if (r.status !== 0) {
     throw new Error(`${path.basename(exe)} ${args.slice(0, 2).join(" ")} falhou: ${(r.stderr?.toString() || r.stdout?.toString() || "").slice(-400)}`);
   }
+}
+
+/** As últimas linhas do log, para o erro dizer o que o Python reclamou. */
+function tail(file: string, lines = 3): string {
+  try {
+    const text = fs.readFileSync(file, "utf8").split(/\r?\n/).filter(Boolean).slice(-lines).join(" | ");
+    return text ? `Últimas linhas: ${text}` : `Veja ${file}`;
+  } catch { return `Veja ${file}`; }
 }
 
 function systemBinary(exe: string): string | null {
