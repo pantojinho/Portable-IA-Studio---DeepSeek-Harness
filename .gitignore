@@ -1,0 +1,24 @@
+# build output
+dist/
+node_modules/
+web/dist/assets/
+
+# portable runtime, engines and models live next to the app but are not source
+runtime/
+engines/
+models/*
+!models/recipes/
+!models/recipes/**
+projects/
+voices/
+data/
+agent/*
+!agent/templates/
+!agent/templates/**
+
+# misc
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

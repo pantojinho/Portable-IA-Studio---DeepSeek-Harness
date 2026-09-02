@@ -1,0 +1,30 @@
+{
+  "name": "aistudio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Studio — estúdio de IA local, portátil: texto, imagem, vídeo, áudio, OCR, documentos e agente, com APIs OpenAI-compatíveis.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:watch": "node scripts/build.mjs --watch",
+    "dev": "node scripts/build.mjs && node dist/server.cjs serve --no-open",
+    "doctor": "node scripts/build.mjs && node dist/server.cjs doctor",
+    "test": "vitest run",
+    "typecheck": "tsc -p server/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.14.0",
+    "hono": "^4.7.0",
+    "yaml": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.1.0"
+  }
+}

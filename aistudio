@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# AI Studio — launcher portátil para macOS e Linux.
+# Garante um Node.js portátil em runtime/node/<os>-<arch> e executa dist/server.cjs.
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NODE_VERSION="24.19.0"
+export AISTUDIO_ROOT="$ROOT"
+
+case "$(uname -s)" in
+  Darwin) OS="darwin";; Linux) OS="linux";;
+  *) echo "Sistema não suportado: $(uname -s)"; exit 1;;
+esac
+case "$(uname -m)" in
+  arm64|aarch64) ARCH="arm64";; x86_64|amd64) ARCH="x64";;
+  *) echo "Arquitetura não suportada: $(uname -m)"; exit 1;;
+esac
+TAG="$([ "$OS" = darwin ] && echo mac || echo linux)-$ARCH"
+NODE_DIR="$ROOT/runtime/node/$TAG"
+NODE_BIN="$NODE_DIR/bin/node"
+
+if [ ! -x "$NODE_BIN" ]; then
+  echo
+  echo "  AI Studio — primeira execução: baixando Node.js $NODE_VERSION portátil (~45 MB)…"
+  mkdir -p "$ROOT/runtime"
+  PKG="node-v$NODE_VERSION-$OS-$ARCH"
+  URL="https://nodejs.org/dist/v$NODE_VERSION/$PKG.tar.gz"
+  TMP="$ROOT/runtime/_node_tmp"; rm -rf "$TMP"; mkdir -p "$TMP"
+  if command -v curl >/dev/null 2>&1; then curl -fL --progress-bar "$URL" -o "$TMP/node.tgz"
+  else wget -q --show-progress "$URL" -O "$TMP/node.tgz"; fi
+  tar -xzf "$TMP/node.tgz" -C "$TMP"
+  mkdir -p "$NODE_DIR"
+  cp -R "$TMP/$PKG/." "$NODE_DIR/"
+  rm -rf "$TMP"
+  if [ ! -x "$NODE_BIN" ]; then echo "  [ERRO] Falha ao instalar o Node.js em $NODE_DIR"; exit 1; fi
+fi
+
+if [ ! -f "$ROOT/dist/server.cjs" ]; then
+  echo "  [ERRO] dist/server.cjs não encontrado. Em um checkout de código-fonte rode: npm install && npm run build"
+  exit 1
+fi
+exec "$NODE_BIN" "$ROOT/dist/server.cjs" "$@"
