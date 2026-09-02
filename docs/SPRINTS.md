@@ -26,8 +26,8 @@ Prioridade do dono: **S3 (Áudio) e S4 (Documentos)** logo após o mínimo da S2
 | MOD-08 | Extrair `.zip` baixados (voices packs) para a pasta destino e registrar conteúdo | S | todo |
 | MOD-09 | Promover receitas: rodar cada uma de ponta a ponta e marcar `verified` (depende dos motores) | M | todo · deps ENG-04/05, AUD-01/03/04 |
 | MOD-10 | Teste ao vivo do CivitAI (com `CIVITAI_TOKEN` opcional) + receita de LoRA SDXL de exemplo | S | todo |
-| CORE-01 | Persistir jobs em `data/jobs.sqlite` (`node:sqlite`) para sobreviver a reinício; histórico na UI | S | todo |
-| CORE-02 | `PUT /api/v1/config` com validação e hot-reload das chaves seguras (idle, downloads) | S | todo |
+| CORE-01 | Persistir jobs em `data/jobs.sqlite` (`node:sqlite`) para sobreviver a reinício; histórico na UI | S | done(2026-09-02) |
+| CORE-02 | `PUT /api/v1/config` com validação e hot-reload das chaves seguras (idle, downloads) | S | done(2026-09-02) |
 
 Aceite S1 (já cumprido): os 10 links de aceitação resolvem para planos corretos
 (`node dist/server.cjs models resolve <link>`); `models migrate` marca os HTML falsos; 24 testes verdes.
@@ -89,7 +89,7 @@ Aceite S3: reunião gravada, transcrita com falantes e resumida; 3 motores de vo
 
 | ID | Tarefa | Tam | Deps |
 |---|---|---|---|
-| DOC-00 | **SQLite + extensões.** `core/db.ts` com `node:sqlite` (`allowExtension`), catálogo de `sqlite-vec` prebuilt por SO em `engines/sqlite-ext/`, migrations simples, FTS5 (já embutido). Aceite: teste inserindo vetores e consultando `vec_distance_cosine`. | S | ENG-01 |
+| DOC-00 | `done(2026-09-02)` **SQLite + extensões.** `core/db.ts` com `node:sqlite` (`allowExtension`), catálogo de `sqlite-vec` prebuilt por SO em `engines/sqlite-ext/`, migrations simples, FTS5 (já embutido). Aceite: teste inserindo vetores e consultando `vec_distance_cosine`. | S | ENG-01 |
 | DOC-01 | **Projetos.** `documents/projects.ts`: criar/listar/renomear/apagar (mover para lixeira `data/trash`, nunca `rm` direto), esquema `index.sqlite` (sources, chunks, chunks_vec, chunks_fts, memory, fields), `memory.md` espelhado. Rotas `/api/v1/projects*`. | M | DOC-00 |
 | DOC-02 | **Ingestão.** `documents/ingest.ts` (job `ingest`): detectar tipo (magic + extensão), extratores: PDF texto (`pdfjs-dist` legacy build, puro JS), DOCX (`mammoth`), XLSX/CSV (`xlsx` ou `exceljs`), PPTX (`jszip` + XML), EML/MSG (`mailparser`), TXT/MD/HTML (`turndown`), áudio/vídeo → AUD-01. PDF sem camada de texto → DOC-03. Saída: Markdown em `derived/`. Pasta monitorada com `fs.watch` debounced. | L | DOC-01 |
 | DOC-03 | **OCR pelo llama.cpp.** `documents/ocr.ts`: renderizar página (pdfjs → PNG via `canvas`? não — usar `pdftoppm`/`mutool` portátil no catálogo ou o rasterizador do pdf.js com `@napi-rs/canvas` como *engine runtime*; decidir e registrar), tiles para páginas grandes, prompt do GLM-OCR para Markdown e para JSON-schema, `POST /api/v1/ocr` (lote, job), export md/json/csv/xlsx. RapidOCR (onnx, sherpa/rapidocr) como motor rápido alternativo. Aceite: 20 páginas escaneadas em PT-BR → Markdown legível com tabelas. | L | ENG-04, DOC-00 |
@@ -136,7 +136,7 @@ Design: instalar `npx impeccable install` no repo e rodar `/impeccable init` ant
 | AGT-05 | `review`: `aistudio agent run "tarefa"` e `POST /api/v1/agent/run` escritos (headless); testar após AGT-01. SDK Python: documentar. | S | AGT-01 |
 | UI-00 | `done(2026-09-02)`: UI mínima sem build em `web/dist/index.html` (Chat com stream, Imagens + galeria, Modelos com plano/download/migração/tokens, Motores & APIs com provedores, Trabalhos por SSE). A S5 substitui por React mantendo as mesmas chamadas. | — | — |
 | VID-01 | Vídeo pelo sd.cpp `vid_gen` (Wan 2.2 5B, LTX-2): flags conforme `docs/wan.md` do sd.cpp, frames → mp4 via ffmpeg, `POST /api/v1/generate/video`. | M | ENG-05, AUD-07 |
-| API-01 | API keys (`--api-key`, várias chaves em `data/secrets/api_keys`), CORS, `--host`, rate-limit simples, logs de acesso. | S | — |
+| API-01 | `done(2026-09-02)` API keys (`--api-key`, várias chaves em `data/secrets/api_keys`), CORS, `--host` recusado sem chave, rate-limit por minuto. | S | — |
 | API-02 | Suíte de compatibilidade OpenAI com o SDK oficial (chat stream, images, audio, embeddings) rodando contra o Studio no CI (modelos pequenos). | M | ENG-06/07/08, AUD-01/02 |
 | SVC-01 | `aistudio service install|uninstall|status|start|stop|logs`: Windows (schtasks ao logon; `sc` com admin), macOS (LaunchAgent), Linux (systemd --user). Reinício automático, `--headless`. | M | — |
 | REL-01 | Empacotamento: `packaging/build-release.mjs` (zip por SO com Node portátil + dist + web/dist + receitas), GitHub Actions matriz win/mac/linux (typecheck, testes, build, artefatos). | M | UI-01 |

@@ -1,7 +1,10 @@
 # API do AI Studio
 
-Base: `http://127.0.0.1:1420`. Sem autenticação em localhost; com `--api-key`, envie
-`Authorization: Bearer <chave>` (ou `X-Api-Key`). Erros: `{ "error": "mensagem" }`.
+Base: `http://127.0.0.1:1420`. Sem chave, o servidor só escuta em 127.0.0.1. Havendo qualquer chave
+(`--api-key`, `data/secrets/api_keys` ou `aistudio config keys new`), toda chamada a `/api` e `/v1`
+exige `Authorization: Bearer <chave>` (ou `X-Api-Key`, ou `?api_key=`). Servir em `--host` público
+sem chave é recusado na largada. `server.rateLimitPerMinute` (0 = sem limite) devolve 429 com `Retry-After`.
+Erros: `{ "error": "mensagem" }`.
 Status por endpoint: **pronto** · *planejado (ID da tarefa)*.
 
 ## Núcleo — pronto
@@ -10,8 +13,12 @@ Status por endpoint: **pronto** · *planejado (ID da tarefa)*.
 | GET | `/api/v1/health` | versão e uptime |
 | GET | `/api/v1/system` | SO, CPU, RAM, GPUs, backend recomendado, disco |
 | GET | `/api/v1/system/live` | RAM/CPU/VRAM em tempo real (monitor) |
-| GET | `/api/v1/config` | configuração (segredos redigidos) |
-| GET | `/api/v1/jobs` · `/jobs/:id` · POST `/jobs/:id/cancel` | fila de trabalhos |
+| GET | `/api/v1/config` | `{config, editable}` (segredos redigidos) |
+| PUT | `/api/v1/config` | atualização parcial validada; devolve `{changed, needsRestart}`; 422 lista os erros |
+| GET | `/api/v1/config/api-keys` | impressão digital das chaves (nunca a chave inteira) |
+| POST | `/api/v1/config/api-key` `{key?}` | cria/registra uma chave; a resposta é a única vez que ela aparece |
+| DELETE | `/api/v1/config/api-key` `{key}` | remove |
+| GET | `/api/v1/jobs?history=1&limit=&kind=` · `/jobs/:id` · POST `/jobs/:id/cancel` | fila e histórico (data/jobs.sqlite) |
 | GET | `/api/v1/events?topics=job,download.progress` | SSE: `event: <tópico>`, `data: <json>` |
 
 ## Modelos — pronto
