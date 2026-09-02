@@ -12,6 +12,10 @@ import { runDoctor } from "./commands/doctor.js";
 const VERSION = "0.1.0";
 const log = logger("cli");
 
+// Aviso "SQLite is an experimental feature": só aparece em Node 22. O runtime portátil do Studio
+// é o Node 24, onde node:sqlite é estável e nada é impresso (não dá para filtrar: o aviso de
+// módulo embutido não passa pelo evento 'warning').
+
 interface Args { cmd: string; rest: string[]; flags: Record<string, string | boolean> }
 
 function parseArgs(argv: string[]): Args {
@@ -39,8 +43,12 @@ const HELP = `AI Studio ${VERSION}
   aistudio providers <list|key>                                        provedores remotos (via API)
   aistudio run "<pergunta>" [--model id]                               chat rápido
   aistudio agent <status|install|start|stop|run "tarefa">              agente de código (DeepSeek Harness)
+  aistudio projects <list|new|add|ingest|ask|search|extract|report>    projetos de documentos
+  aistudio speak "texto" [--voice id] [--out arquivo]                  falar (TTS)
+  aistudio transcribe <arquivo> [--diarize] [--format srt]             transcrever áudio/vídeo
+  aistudio meeting <start|stop|list> [--title T] [--project P]         gravar reunião
   aistudio config <show|set <chave> <valor>|keys [new|list|remove]>    configuração e chaves de API
-  aistudio service <install|uninstall|status>  rodar como serviço (SVC-01)
+  aistudio service <install|uninstall|status|start|stop|logs>          rodar sozinho ao ligar
   aistudio --help
 `;
 
@@ -64,6 +72,11 @@ async function main(): Promise<void> {
     case "run": { const { runCmd } = await import("./commands/engines.js"); return runCmd(ctx, rest, flags); }
     case "agent": { const { agentCmd } = await import("./commands/agent.js"); return agentCmd(ctx, rest, flags); }
     case "config": { const { configCmd } = await import("./commands/config.js"); return configCmd(ctx, rest); }
+    case "service": { const { serviceCmd } = await import("./commands/service.js"); return serviceCmd(ctx, rest, flags); }
+    case "projects": { const { projectsCmd } = await import("./commands/projects.js"); return projectsCmd(ctx, rest, flags); }
+    case "speak": { const { speakCmd } = await import("./commands/audio.js"); return speakCmd(ctx, rest, flags); }
+    case "transcribe": { const { transcribeCmd } = await import("./commands/audio.js"); return transcribeCmd(ctx, rest, flags); }
+    case "meeting": { const { meetingCmd } = await import("./commands/audio.js"); return meetingCmd(ctx, rest, flags); }
     default:
       console.error(`Comando desconhecido: ${cmd}\n`); console.log(HELP); process.exitCode = 1;
   }

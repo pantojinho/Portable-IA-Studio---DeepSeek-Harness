@@ -5,9 +5,6 @@ import { Hono } from "hono";
  * tarefa responsável, para que a UI e integrações saibam o que esperar.
  */
 const PLANNED: [string, string][] = [
-  ["/v1/images/edits", "ENG-07"],
-  ["/api/v1/generate/video", "VID-01"],
-  ["/mcp", "AGT-04"],
 ];
 
 export function plannedRoutes(): Hono {

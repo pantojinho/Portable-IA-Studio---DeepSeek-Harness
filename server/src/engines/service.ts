@@ -4,6 +4,7 @@ import { recommendBackend, type Backend } from "../core/system.js";
 import type { ModelRecord } from "../models/types.js";
 import { defaultMigrationSources } from "../models/registry.js";
 import { EngineInstaller } from "./installer.js";
+import { ModelSettingsStore } from "./settings.js";
 import { EngineRegistry } from "./registry.js";
 import { Supervisor } from "./supervisor.js";
 import { LlamaCppAdapter } from "./llamacpp.js";
@@ -19,12 +20,15 @@ const ENGINE_IDS: EngineId[] = ["llamacpp", "sdcpp", "whispercpp", "sherpa-onnx"
 /** Facade: which engines exist, which are installed, start a model, list instances. */
 export class EngineService {
   readonly installer: EngineInstaller;
+  /** ENG-12: per-model knobs the user tuned, applied on every launch */
+  readonly settings: ModelSettingsStore;
   readonly registry = new EngineRegistry();
   readonly supervisor: Supervisor;
   private backend: Backend | null = null;
 
   constructor(private ctx: StudioContext) {
     this.installer = new EngineInstaller(ctx.paths);
+    this.settings = new ModelSettingsStore(ctx.paths);
     this.supervisor = new Supervisor(ctx, this.registry);
     this.registry.register(new LlamaCppAdapter(ctx, this.installer, () => this.supervisor));
     this.registry.register(new SdCppAdapter(ctx, this.installer));
@@ -111,7 +115,9 @@ export class EngineService {
     if (!found) throw new Error(`modelo '${ref}' não está na biblioteca. Baixe com: aistudio models pull <link>`);
     const engine = this.engineFor(found.model.kind);
     const inst = await this.ensureInstalled(engine);
-    return this.supervisor.ensure(engine, { model: found.model, companions: found.companions, backend: inst.backend, settings, recipeArgs: found.recipeArgs, signal });
+    // ENG-12: saved settings first, explicit ones win
+    const merged = { ...this.settings.get(found.model.id), ...(settings ?? {}) };
+    return this.supervisor.ensure(engine, { model: found.model, companions: found.companions, backend: inst.backend, settings: merged, recipeArgs: found.recipeArgs, signal });
   }
 
   engineFor(kind: ModelKind): EngineId {

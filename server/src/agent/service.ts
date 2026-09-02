@@ -88,9 +88,21 @@ export class AgentService {
       if (!this.ctx.providers.key(id) || cfg.models.length === 0) continue;
       providers[id] = { api: "openai-completions", baseURL: cfg.baseURL, apiKeyEnv: `AISTUDIO_PROVIDER_${id.toUpperCase()}`, models: cfg.models.map((m) => ({ id: m })) };
     }
+    // AGT-04: the Studio's own MCP server, so the agent can generate images, speak, OCR and search projects
+    const mcpUrl = `http://127.0.0.1:${port}/mcp`;
     const settings = {
       "llm-pi-ai": { providers },
-      // TODO(AGT-04): register the Studio MCP server here once /mcp exists (dsh-mcp-client config key from docs/config-catalog.md)
+      "dsh-mcp-client": {
+        servers: {
+          aistudio: {
+            type: "http",
+            url: mcpUrl,
+            ...(this.ctx.config.server.apiKey ? { headers: { Authorization: `Bearer ${this.ctx.config.server.apiKey}` } } : {}),
+          },
+        },
+      },
+      // formato alternativo aceito por vários clientes MCP; inofensivo para quem ignora
+      mcpServers: { aistudio: { type: "http", url: mcpUrl } },
     };
     const file = path.join(this.home, "settings.yaml");
     const doc = new YAML.Document(settings);

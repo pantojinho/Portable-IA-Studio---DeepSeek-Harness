@@ -18,6 +18,7 @@ import { audioRoutes } from "./routes/audio.js";
 import { agentRoutes } from "./routes/agent.js";
 import { projectsRoutes, memoryRoutes } from "./routes/projects.js";
 import { meetingsRoutes } from "./routes/meetings.js";
+import { mcpRoutes } from "./routes/mcp.js";
 
 const log = logger("http");
 
@@ -91,6 +92,7 @@ export function createApp(ctx: StudioContext): Hono {
   app.route("/api/v1/ocr", docs.ocr);
   app.route("/api/v1/memory", memoryRoutes(ctx));
   app.route("/api/v1/meetings", meetingsRoutes(ctx));
+  app.route("/mcp", mcpRoutes(ctx));
   app.route("/", plannedRoutes());
 
   app.get("/api/v1/jobs", (c) => {
