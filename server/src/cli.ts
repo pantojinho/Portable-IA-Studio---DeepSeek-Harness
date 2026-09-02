@@ -4,7 +4,7 @@ import { resolvePaths, ensureLayout } from "./core/paths.js";
 import { loadConfig, applyCliOverrides } from "./core/config.js";
 import { initFileLogging, logger, setLogLevel } from "./core/log.js";
 import { findFreePort } from "./core/ports.js";
-import { createContext } from "./core/context.js";
+import { createContext, type StudioContext } from "./core/context.js";
 import { createApp } from "./api/app.js";
 import { systemInfo } from "./core/system.js";
 import { runDoctor } from "./commands/doctor.js";
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   ensureLayout(paths);
   initFileLogging(paths.logs);
   const config = applyCliOverrides(loadConfig(paths), flags);
-  const ctx = createContext(paths, config, VERSION);
+  const ctx = await createContext(paths, config, VERSION);
 
   switch (cmd) {
     case "serve": return serveCmd(ctx);
@@ -59,7 +59,7 @@ async function main(): Promise<void> {
   }
 }
 
-async function serveCmd(ctx: Awaited<ReturnType<typeof createContext>>): Promise<void> {
+async function serveCmd(ctx: StudioContext): Promise<void> {
   const { host } = ctx.config.server;
   const port = await findFreePort(ctx.config.server.port, 1421, 1499, host);
   if (port !== ctx.config.server.port) log.warn(`Porta ${ctx.config.server.port} ocupada; usando ${port}.`);
@@ -93,4 +93,5 @@ function openBrowser(url: string): void {
   try { spawn(cmd[0], [...cmd[1]], { detached: true, stdio: "ignore" }).unref(); } catch { /* headless */ }
 }
 
-main().catch((err) => { log.error("Falha fatal", err); process.exit(1); });
+// exitCode instead of process.exit(): lets in-flight sockets close cleanly (avoids a libuv assert on Windows)
+main().catch((err) => { console.error(`\n  ✘ ${(err as Error).message}`); log.debug("stack", err); process.exitCode = 1; });

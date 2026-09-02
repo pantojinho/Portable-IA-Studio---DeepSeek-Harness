@@ -7,6 +7,8 @@ import type { StudioContext } from "../core/context.js";
 import { bus } from "../core/events.js";
 import { liveStats, systemInfo } from "../core/system.js";
 import { logger } from "../core/log.js";
+import { modelsRoutes } from "./routes/models.js";
+import { plannedRoutes } from "./routes/planned.js";
 
 const log = logger("http");
 
@@ -29,6 +31,9 @@ export function createApp(ctx: StudioContext): Hono {
   app.get("/api/v1/system", async (c) => c.json(await systemInfo(ctx.paths.root)));
   app.get("/api/v1/system/live", async (c) => c.json(await liveStats()));
   app.get("/api/v1/config", (c) => c.json(redactConfig(ctx)));
+
+  app.route("/api/v1/models", modelsRoutes(ctx));
+  app.route("/", plannedRoutes());
 
   app.get("/api/v1/jobs", (c) => c.json({ jobs: ctx.jobs.list() }));
   app.get("/api/v1/jobs/:id", (c) => { const j = ctx.jobs.get(c.req.param("id")); return j ? c.json(j) : c.json({ error: "job não encontrado" }, 404); });

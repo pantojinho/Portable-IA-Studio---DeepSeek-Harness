@@ -1,0 +1,326 @@
+# Receitas embutidas do AI Studio.
+# Uma receita = todos os arquivos (de um ou vários repositórios) + como o motor os usa.
+# status: verified (testado no Studio) | community (arquivos confirmados, motor ainda não testado aqui)
+#         | draft (caminhos por glob, confirmar ao instalar) | planned (motor ainda não existe no Studio)
+# Os caminhos com {quant} são resolvidos consultando a árvore real do repositório; o primeiro da
+# lista `prefer` que existir e couber na VRAM é escolhido. Globs também são validados na hora.
+
+recipes:
+
+# ───────────────────────────── OCR (llama.cpp + mmproj) ─────────────────────────────
+- id: glm-ocr
+  name: GLM-OCR (0.9B)
+  kind: ocr
+  engine: llamacpp
+  status: community
+  description: OCR de documentos com layout, tabelas, fórmulas e extração por JSON schema. MIT.
+  license: mit
+  minVramMiB: 2500
+  match: { repos: [zai-org/GLM-OCR, ggml-org/GLM-OCR-GGUF] }
+  files:
+    - { role: main, slot: model, from: { repo: ggml-org/GLM-OCR-GGUF, pattern: "GLM-OCR-{quant}.gguf", prefer: [Q8_0, f16] } }
+    - { role: mmproj, slot: mmproj, kind: ocr, from: { repo: ggml-org/GLM-OCR-GGUF, glob: "mmproj-GLM-OCR-*.gguf" } }
+  engineArgs:
+    llamacpp: ["-m", "{model}", "--mmproj", "{mmproj}", "-c", "12000", "-ngl", "99", "--flash-attn", "off"]
+  sources:
+    - https://huggingface.co/zai-org/GLM-OCR
+    - https://github.com/ggml-org/llama.cpp/discussions/19721
+
+- id: unlimited-ocr
+  name: Unlimited-OCR (Baidu)
+  kind: ocr
+  engine: llamacpp
+  status: community
+  description: OCR multimodal da Baidu em GGUF comunitário; conferir qualidade em PT-BR.
+  license: mit
+  minVramMiB: 3500
+  match: { repos: [baidu/Unlimited-OCR, sabafallah/Unlimited-OCR-GGUF, sahilchachra/Unlimited-OCR-GGUF] }
+  files:
+    - { role: main, slot: model, from: { repo: sabafallah/Unlimited-OCR-GGUF, pattern: "unlimited-ocr-{quant}.gguf", prefer: [Q4_K_M, q8_0, bf16] } }
+    - { role: mmproj, slot: mmproj, kind: ocr, from: { repo: sabafallah/Unlimited-OCR-GGUF, glob: "mmproj-unlimited-ocr-q8_0.gguf" } }
+  engineArgs:
+    llamacpp: ["-m", "{model}", "--mmproj", "{mmproj}", "-c", "8192", "-ngl", "99"]
+  notes: ["Se a arquitetura não carregar no llama-server bundled, atualizar a release do llama.cpp (tarefa ENG-01)."]
+  sources: [https://huggingface.co/baidu/Unlimited-OCR, https://huggingface.co/blog/ggml-org/using-ocr-models-with-llama-cpp]
+
+- id: falcon-ocr
+  name: Falcon-OCR (TII)
+  kind: ocr
+  engine: python:transformers
+  status: planned
+  description: Sem GGUF disponível em set/2026; roda pelo motor Python (venv) quando ele existir.
+  license: apache-2.0
+  match: { repos: [tiiuae/Falcon-OCR] }
+  files:
+    - { role: main, slot: model, from: { repo: tiiuae/Falcon-OCR, path: model.safetensors } }
+    - { role: config, slot: config, from: { repo: tiiuae/Falcon-OCR, glob: "*.json" } }
+  notes: ["Quando surgir um derivado GGUF (filtro base_model:quantized), trocar engine para llamacpp."]
+
+# ───────────────────────────── Imagem (stable-diffusion.cpp) ─────────────────────────────
+- id: sdxl-base-1.0
+  name: Stable Diffusion XL base 1.0
+  kind: image
+  engine: sdcpp
+  family: sdxl
+  status: community
+  license: openrail++
+  minVramMiB: 4500
+  match: { repos: [stabilityai/stable-diffusion-xl-base-1.0] }
+  files:
+    - { role: main, slot: model, from: { repo: stabilityai/stable-diffusion-xl-base-1.0, path: sd_xl_base_1.0.safetensors } }
+  engineArgs:
+    sdcpp: ["-m", "{model}", "--cfg-scale", "7.0", "--steps", "25", "-W", "1024", "-H", "1024"]
+
+- id: animagine-xl-4.0
+  name: Animagine XL 4.0
+  kind: image
+  engine: sdcpp
+  family: sdxl
+  status: community
+  license: openrail++
+  minVramMiB: 4500
+  match: { repos: [cagliostrolab/animagine-xl-4.0] }
+  files:
+    - { role: main, slot: model, from: { repo: cagliostrolab/animagine-xl-4.0, path: animagine-xl-4.0-opt.safetensors } }
+  engineArgs:
+    sdcpp: ["-m", "{model}", "--cfg-scale", "5.0", "--steps", "28", "-W", "1024", "-H", "1024"]
+
+- id: sd3.5-medium
+  name: Stable Diffusion 3.5 Medium
+  kind: image
+  engine: sdcpp
+  family: sd3
+  status: community
+  license: stabilityai-community
+  gated: true
+  minVramMiB: 5500
+  match: { repos: [stabilityai/stable-diffusion-3.5-medium, city96/stable-diffusion-3.5-medium-gguf, Comfy-Org/stable-diffusion-3.5-fp8] }
+  files:
+    - { role: diffusion, slot: model, from: { repo: city96/stable-diffusion-3.5-medium-gguf, pattern: "sd3.5_medium-{quant}.gguf", prefer: [Q8_0, Q6_K, Q5_K_M, Q4_K_M, Q4_0, F16], alternatives: [{ repo: stabilityai/stable-diffusion-3.5-medium, path: sd3.5_medium.safetensors }] } }
+    - { role: text_encoder, slot: clip_l, subdir: encoders, from: { repo: Comfy-Org/stable-diffusion-3.5-fp8, path: text_encoders/clip_l.safetensors, alternatives: [{ repo: comfyanonymous/flux_text_encoders, path: clip_l.safetensors }] } }
+    - { role: text_encoder, slot: clip_g, subdir: encoders, from: { repo: Comfy-Org/stable-diffusion-3.5-fp8, path: text_encoders/clip_g.safetensors, alternatives: [{ repo: stabilityai/stable-diffusion-3.5-medium, path: text_encoders/clip_g.safetensors }] } }
+    - { role: text_encoder, slot: t5xxl, subdir: encoders, from: { repo: Comfy-Org/stable-diffusion-3.5-fp8, path: text_encoders/t5xxl_fp8_e4m3fn.safetensors, alternatives: [{ repo: comfyanonymous/flux_text_encoders, path: t5xxl_fp8_e4m3fn.safetensors }] } }
+  engineArgs:
+    sdcpp: ["--diffusion-model", "{model}", "--clip_l", "{clip_l}", "--clip_g", "{clip_g}", "--t5xxl", "{t5xxl}", "--cfg-scale", "4.5", "--steps", "28", "--sampling-method", "euler", "-W", "1024", "-H", "1024", "--offload-to-cpu"]
+  notes: ["Os pesos originais da Stability são gated; a receita usa o GGUF da city96 e os encoders do repack da Comfy-Org, ambos abertos. Com token HF, o original vira alternativa."]
+  sources: [https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/sd3.md]
+
+- id: flux1-dev
+  name: FLUX.1 dev (GGUF)
+  kind: image
+  engine: sdcpp
+  family: flux1
+  status: community
+  license: flux-1-dev-non-commercial-license
+  nonCommercial: true
+  minVramMiB: 6000
+  match: { repos: [black-forest-labs/FLUX.1-dev, city96/FLUX.1-dev-gguf, leejet/FLUX.1-dev-gguf, unsloth/FLUX.1-dev-GGUF] }
+  files:
+    - { role: diffusion, slot: diffusion, from: { repo: city96/FLUX.1-dev-gguf, pattern: "flux1-dev-{quant}.gguf", prefer: [Q4_K_S, Q4_0, Q5_K_S, Q5_0, Q6_K, Q8_0, Q3_K_S, F16] } }
+    - { role: vae, slot: vae, subdir: encoders/flux, from: { repo: Comfy-Org/z_image_turbo, path: split_files/vae/ae.safetensors, alternatives: [{ repo: Comfy-Org/Lumina_Image_2.0_Repackaged, path: split_files/vae/ae.safetensors }, { repo: black-forest-labs/FLUX.1-schnell, path: ae.safetensors }] } }
+    - { role: text_encoder, slot: clip_l, subdir: encoders, from: { repo: comfyanonymous/flux_text_encoders, path: clip_l.safetensors } }
+    - { role: text_encoder, slot: t5xxl, subdir: encoders, from: { repo: comfyanonymous/flux_text_encoders, path: t5xxl_fp8_e4m3fn.safetensors } }
+  engineArgs:
+    sdcpp: ["--diffusion-model", "{diffusion}", "--vae", "{vae}", "--clip_l", "{clip_l}", "--t5xxl", "{t5xxl}", "--cfg-scale", "1.0", "--steps", "20", "--sampling-method", "euler", "--offload-to-cpu", "--diffusion-fa"]
+  notes: ["Os pesos originais (23,8 GB fp16) são gated; a receita usa o GGUF quantizado da city96, que não é.", "VAE (ae.safetensors, idêntico ao do FLUX) vem do repack aberto da Comfy-Org; o FLUX.1-schnell virou gated em 2026."]
+  sources: [https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/flux.md]
+
+- id: flux1-schnell
+  name: FLUX.1 schnell (GGUF)
+  kind: image
+  engine: sdcpp
+  family: flux1
+  status: community
+  license: apache-2.0
+  minVramMiB: 6000
+  match: { repos: [black-forest-labs/FLUX.1-schnell, city96/FLUX.1-schnell-gguf] }
+  files:
+    - { role: diffusion, slot: diffusion, from: { repo: city96/FLUX.1-schnell-gguf, pattern: "flux1-schnell-{quant}.gguf", prefer: [Q4_K_S, Q4_0, Q5_K_S, Q8_0, Q3_K_S] } }
+    - { role: vae, slot: vae, subdir: encoders/flux, from: { repo: Comfy-Org/z_image_turbo, path: split_files/vae/ae.safetensors, alternatives: [{ repo: Comfy-Org/Lumina_Image_2.0_Repackaged, path: split_files/vae/ae.safetensors }, { repo: black-forest-labs/FLUX.1-schnell, path: ae.safetensors }] } }
+    - { role: text_encoder, slot: clip_l, subdir: encoders, from: { repo: comfyanonymous/flux_text_encoders, path: clip_l.safetensors } }
+    - { role: text_encoder, slot: t5xxl, subdir: encoders, from: { repo: comfyanonymous/flux_text_encoders, path: t5xxl_fp8_e4m3fn.safetensors } }
+  engineArgs:
+    sdcpp: ["--diffusion-model", "{diffusion}", "--vae", "{vae}", "--clip_l", "{clip_l}", "--t5xxl", "{t5xxl}", "--cfg-scale", "1.0", "--steps", "4", "--sampling-method", "euler", "--offload-to-cpu", "--diffusion-fa"]
+
+- id: flux2-klein-4b
+  name: FLUX.2 klein 4B
+  kind: image
+  engine: sdcpp
+  family: flux2
+  status: draft
+  license: apache-2.0
+  minVramMiB: 6000
+  match: { repos: [black-forest-labs/FLUX.2-klein-4B, leejet/FLUX.2-klein-4B-GGUF, unsloth/FLUX.2-klein-4B-GGUF, ponpoke/flux2-klein-4b-uncensored-text-encoder] }
+  files:
+    - { role: diffusion, slot: diffusion, from: { repo: unsloth/FLUX.2-klein-4B-GGUF, pattern: "*{quant}.gguf", prefer: [Q4_K_M, Q4_K_S, Q5_K_M, Q6_K, Q8_0, Q3_K_M], alternatives: [{ repo: leejet/FLUX.2-klein-4B-GGUF, pattern: "*{quant}.gguf", prefer: [Q4_K_M, Q4_0, Q5_0, Q8_0] }, { repo: black-forest-labs/FLUX.2-klein-4B, path: flux-2-klein-4b.safetensors }] } }
+    - { role: vae, slot: vae, subdir: encoders/flux2, from: { repo: Comfy-Org/flux2-klein-4B, glob: "split_files/vae/*.safetensors", alternatives: [{ repo: black-forest-labs/FLUX.2-dev, path: ae.safetensors }] } }
+    - { role: text_encoder, slot: llm, kind: text, from: { repo: unsloth/Qwen3-4B-GGUF, pattern: "Qwen3-4B-{quant}.gguf", prefer: [Q4_K_M, Q5_K_M, Q8_0] } }
+  engineArgs:
+    sdcpp: ["--diffusion-model", "{diffusion}", "--vae", "{vae}", "--llm", "{llm}", "--cfg-scale", "1.0", "--steps", "4", "--sampling-method", "euler", "--offload-to-cpu", "--diffusion-fa"]
+  notes: ["Confirmar nomes exatos dos GGUF (unsloth/leejet) na primeira instalação; o glob valida."]
+  sources: [https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/flux2.md]
+
+- id: z-image-turbo
+  name: Z-Image Turbo
+  kind: image
+  engine: sdcpp
+  family: z-image
+  status: draft
+  license: apache-2.0
+  minVramMiB: 4000
+  match: { repos: [Tongyi-MAI/Z-Image-Turbo, leejet/Z-Image-Turbo-GGUF, unsloth/Z-Image-Turbo-GGUF, Comfy-Org/z_image_turbo] }
+  files:
+    - { role: diffusion, slot: diffusion, from: { repo: leejet/Z-Image-Turbo-GGUF, pattern: "z_image_turbo-{quant}.gguf", prefer: [q4_K, q4_0, q5_0, q6_K, q8_0, q3_K], alternatives: [{ repo: unsloth/Z-Image-Turbo-GGUF, pattern: "*{quant}.gguf", prefer: [Q4_K_M, Q4_K_S, Q5_K_M, Q8_0] }] } }
+    - { role: vae, slot: vae, subdir: encoders/flux, from: { repo: Comfy-Org/z_image_turbo, path: split_files/vae/ae.safetensors, alternatives: [{ repo: Comfy-Org/Lumina_Image_2.0_Repackaged, path: split_files/vae/ae.safetensors }, { repo: black-forest-labs/FLUX.1-schnell, path: ae.safetensors }] } }
+    - { role: text_encoder, slot: llm, kind: text, from: { repo: unsloth/Qwen3-4B-Instruct-2507-GGUF, pattern: "Qwen3-4B-Instruct-2507-{quant}.gguf", prefer: [Q4_K_M, Q5_K_M, Q8_0] } }
+  engineArgs:
+    sdcpp: ["--diffusion-model", "{diffusion}", "--vae", "{vae}", "--llm", "{llm}", "--cfg-scale", "1.0", "--steps", "8", "--offload-to-cpu", "--diffusion-fa", "-W", "1024", "-H", "1024"]
+  sources: [https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/z_image.md]
+
+- id: krea-2-turbo
+  name: Krea 2 Turbo (12B)
+  kind: image
+  engine: python:diffusers
+  status: planned
+  license: krea-2-license
+  gated: true
+  minVramMiB: 16000
+  match: { repos: [krea/Krea-2-Turbo, krea/Krea-2-Raw, lvladikov/Krea2-Turbo-Distill-4step-LoRA, vantagewithai/Krea-2-Turbo-GGUF] }
+  files:
+    - { role: diffusion, slot: diffusion, from: { repo: vantagewithai/Krea-2-Turbo-GGUF, pattern: "krea2_turbo-{quant}.gguf", prefer: [Q4_K_M, Q4_0, Q5_K_M, Q6_K, Q8_0, Q3_K_M], alternatives: [{ repo: krea/Krea-2-Turbo, path: turbo.safetensors }] } }
+    - { role: vae, slot: vae, subdir: encoders/krea2, from: { repo: krea/Krea-2-Turbo, path: vae/diffusion_pytorch_model.safetensors } }
+    - { role: text_encoder, slot: llm, subdir: encoders/krea2, from: { repo: krea/Krea-2-Turbo, path: text_encoder/model.safetensors } }
+  notes:
+    - "stable-diffusion.cpp ainda não suporta a arquitetura Krea 2 (issue #1703); quando suportar, esta receita já aponta para o GGUF comunitário (vantagewithai) e vira engine: sdcpp."
+    - "VAE e text encoder (Qwen3-VL 4B) só existem no repositório gated da Krea: precisa de token."
+    - "A LoRA lvladikov/Krea2-Turbo-Distill-4step-LoRA depende deste modelo."
+  sources: [https://github.com/leejet/stable-diffusion.cpp/issues/1703]
+
+# ───────────────────────────── Vídeo (stable-diffusion.cpp vid_gen) ─────────────────────────────
+- id: wan2.2-ti2v-5b
+  name: Wan 2.2 TI2V 5B
+  kind: video
+  engine: sdcpp
+  family: wan
+  status: draft
+  license: apache-2.0
+  minVramMiB: 6000
+  match: { repos: [Wan-AI/Wan2.2-TI2V-5B, Comfy-Org/Wan_2.2_ComfyUI_Repackaged] }
+  files:
+    - { role: diffusion, slot: diffusion, from: { repo: Comfy-Org/Wan_2.2_ComfyUI_Repackaged, path: split_files/diffusion_models/wan2.2_ti2v_5B_fp16.safetensors } }
+    - { role: vae, slot: vae, subdir: encoders/wan, from: { repo: Comfy-Org/Wan_2.2_ComfyUI_Repackaged, path: split_files/vae/wan2.2_vae.safetensors } }
+    - { role: text_encoder, slot: t5xxl, subdir: encoders/wan, from: { repo: Comfy-Org/Wan_2.2_ComfyUI_Repackaged, path: split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors } }
+  engineArgs:
+    sdcpp: ["-M", "vid_gen", "--diffusion-model", "{diffusion}", "--vae", "{vae}", "--t5xxl", "{t5xxl}", "--cfg-scale", "5.0", "--steps", "20", "--video-frames", "33", "--fps", "24", "-W", "832", "-H", "480", "--offload-to-cpu", "--diffusion-fa"]
+  notes: ["Ajustar flags conforme docs/wan.md do sd.cpp na tarefa VID-01."]
+  sources: [https://github.com/leejet/stable-diffusion.cpp/blob/master/docs/wan.md]
+
+# ───────────────────────────── Texto (llama.cpp) ─────────────────────────────
+- id: qwen3-4b
+  name: Qwen3 4B
+  kind: text
+  engine: llamacpp
+  status: community
+  license: apache-2.0
+  minVramMiB: 3500
+  match: { repos: [Qwen/Qwen3-4B, Qwen/Qwen3-4B-GGUF, unsloth/Qwen3-4B-GGUF] }
+  files:
+    - { role: main, slot: model, from: { repo: unsloth/Qwen3-4B-GGUF, pattern: "Qwen3-4B-{quant}.gguf", prefer: [Q4_K_M, Q5_K_M, Q6_K, Q8_0, Q3_K_M] } }
+  engineArgs:
+    llamacpp: ["-m", "{model}", "-c", "8192", "-ngl", "99", "--jinja"]
+
+- id: qwen3-embedding-0.6b
+  name: Qwen3 Embedding 0.6B
+  kind: embeddings
+  engine: llamacpp
+  status: community
+  license: apache-2.0
+  match: { repos: [Qwen/Qwen3-Embedding-0.6B, Qwen/Qwen3-Embedding-0.6B-GGUF] }
+  files:
+    - { role: main, slot: model, from: { repo: Qwen/Qwen3-Embedding-0.6B-GGUF, pattern: "Qwen3-Embedding-0.6B-{quant}.gguf", prefer: [Q8_0, f16] } }
+  engineArgs:
+    llamacpp: ["-m", "{model}", "--embedding", "--pooling", "last", "-c", "8192", "-ub", "8192", "-ngl", "99"]
+
+- id: bge-m3
+  name: BGE-M3 (multilíngue)
+  kind: embeddings
+  engine: llamacpp
+  status: draft
+  license: mit
+  match: { repos: [BAAI/bge-m3, gpustack/bge-m3-GGUF] }
+  files:
+    - { role: main, slot: model, from: { repo: gpustack/bge-m3-GGUF, glob: "*Q8_0*.gguf" } }
+  engineArgs:
+    llamacpp: ["-m", "{model}", "--embedding", "--pooling", "cls", "-c", "8192", "-ub", "8192", "-ngl", "99"]
+
+- id: bge-reranker-v2-m3
+  name: BGE Reranker v2 M3
+  kind: rerank
+  engine: llamacpp
+  status: draft
+  license: apache-2.0
+  match: { repos: [BAAI/bge-reranker-v2-m3, gpustack/bge-reranker-v2-m3-GGUF] }
+  files:
+    - { role: main, slot: model, from: { repo: gpustack/bge-reranker-v2-m3-GGUF, glob: "*Q8_0*.gguf" } }
+  engineArgs:
+    llamacpp: ["-m", "{model}", "--reranking", "-c", "8192", "-ngl", "99"]
+
+# ───────────────────────────── Fala → texto (whisper.cpp) ─────────────────────────────
+- id: whisper-large-v3-turbo
+  name: Whisper large-v3 turbo
+  kind: speech
+  engine: whispercpp
+  status: community
+  license: mit
+  minVramMiB: 2000
+  match: { repos: [openai/whisper-large-v3-turbo, ggerganov/whisper.cpp] }
+  files:
+    - { role: main, slot: model, from: { repo: ggerganov/whisper.cpp, path: ggml-large-v3-turbo.bin } }
+
+- id: whisper-small
+  name: Whisper small
+  kind: speech
+  engine: whispercpp
+  status: community
+  license: mit
+  match: { repos: [openai/whisper-small] }
+  files:
+    - { role: main, slot: model, from: { repo: ggerganov/whisper.cpp, path: ggml-small.bin } }
+
+# ───────────────────────────── Vozes (TTS) ─────────────────────────────
+- id: piper-pt-br-faber
+  name: Piper · pt-BR · Faber (medium)
+  kind: tts
+  engine: piper
+  status: draft
+  license: mit
+  match: { repos: [rhasspy/piper-voices] }
+  files:
+    - { role: voice, slot: voice, subdir: piper, from: { repo: rhasspy/piper-voices, path: pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx } }
+    - { role: config, slot: config, subdir: piper, from: { repo: rhasspy/piper-voices, path: pt/pt_BR/faber/medium/pt_BR-faber-medium.onnx.json } }
+
+- id: kokoro-82m
+  name: Kokoro 82M (ONNX)
+  kind: tts
+  engine: kokoro
+  status: draft
+  license: apache-2.0
+  match: { repos: [hexgrad/Kokoro-82M, onnx-community/Kokoro-82M-v1.0-ONNX] }
+  files:
+    - { role: main, slot: model, subdir: kokoro, from: { repo: onnx-community/Kokoro-82M-v1.0-ONNX, path: onnx/model_q8f16.onnx } }
+    - { role: voice, slot: voices, subdir: kokoro/voices, from: { repo: onnx-community/Kokoro-82M-v1.0-ONNX, glob: "voices/*.bin" } }
+    - { role: config, slot: config, subdir: kokoro, from: { repo: onnx-community/Kokoro-82M-v1.0-ONNX, glob: "*.json" }, optional: true }
+  notes: ["Vozes PT-BR: pf_dora (feminina), pm_alex e pm_santa (masculinas)."]
+
+- id: f5-tts-pt-br
+  name: F5-TTS pt-BR (clonagem de voz)
+  kind: tts
+  engine: python:f5-tts
+  status: planned
+  license: cc-by-nc-4.0
+  nonCommercial: true
+  minVramMiB: 4000
+  match: { repos: [firstpixel/F5-TTS-pt-br] }
+  files:
+    - { role: main, slot: model, subdir: f5tts, from: { repo: firstpixel/F5-TTS-pt-br, path: pt-br/model_last.safetensors } }
+  notes: ["Precisa do motor Python F5-TTS (tarefa AUD-05) e do vocab/vocoder do SWivid/F5-TTS.", "Licença não comercial."]

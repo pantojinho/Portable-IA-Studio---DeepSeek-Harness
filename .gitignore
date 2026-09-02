@@ -5,7 +5,8 @@ web/dist/assets/
 
 # portable runtime, engines and models live next to the app but are not source
 runtime/
-engines/
+engines/*
+!engines/catalog.yaml
 models/*
 !models/recipes/
 !models/recipes/**

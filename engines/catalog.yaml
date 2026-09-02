@@ -1,0 +1,91 @@
+# Catálogo de builds de motores (ENG-01). Um bloco por motor × SO × backend.
+# Versões fixadas; atualizar = trocar a release e o hash. `keep` limita o que fica em disco.
+# Fontes: ULS scripts/config/llm-backends.json (llama.cpp b9668), serve.cjs L4886-4902 (sd.cpp),
+#         releases oficiais no GitHub. Hashes: preencher na primeira instalação (o instalador grava).
+version: 1
+
+llamacpp:
+  release: b9668
+  base: https://github.com/ggml-org/llama.cpp/releases/download/{release}/
+  keep: ["llama-server*", "llama-tts*", "llama-embedding*", "*.dll", "*.so*", "*.dylib", "*.metal"]
+  exe: { win: llama-server.exe, linux: llama-server, mac: llama-server }
+  builds:
+    win-x64:
+      cuda:   { file: "llama-{release}-bin-win-cuda-12.4-x64.zip", requires: ["cudart-llama-bin-win-cuda-12.4-x64.zip"] }
+      vulkan: { file: "llama-{release}-bin-win-vulkan-x64.zip" }
+      rocm:   { file: "llama-{release}-bin-win-hip-x64.zip" }
+      cpu:    { file: "llama-{release}-bin-win-cpu-x64.zip" }
+    linux-x64:
+      cuda:   { file: "llama-{release}-bin-ubuntu-cuda-12.4-x64.tar.gz" }
+      rocm:   { file: "llama-{release}-bin-ubuntu-rocm-x64.tar.gz" }
+      vulkan: { file: "llama-{release}-bin-ubuntu-vulkan-x64.tar.gz" }
+      cpu:    { file: "llama-{release}-bin-ubuntu-x64.tar.gz" }
+    linux-arm64:
+      vulkan: { file: "llama-{release}-bin-ubuntu-vulkan-arm64.tar.gz" }
+      cpu:    { file: "llama-{release}-bin-ubuntu-arm64.tar.gz" }
+    mac-arm64:
+      metal:  { file: "llama-{release}-bin-macos-arm64.tar.gz" }
+    mac-x64:
+      cpu:    { file: "llama-{release}-bin-macos-x64.tar.gz" }
+
+sdcpp:
+  # stable-diffusion.cpp publica por commit; manter os mesmos que o ULS validou até ENG-05 promover
+  base: https://github.com/leejet/stable-diffusion.cpp/releases/download/
+  keep: ["sd-cli*", "sd-server*", "*.dll", "*.so*", "*.dylib"]
+  exe: { win: sd-cli.exe, linux: sd-cli, mac: sd-cli }
+  builds:
+    win-x64:
+      cuda:   { file: "master-782-b290693/sd-master-b290693-bin-win-cuda12-x64.zip" }
+      vulkan: { file: "master-685-19bdfe2/sd-master-19bdfe2-bin-win-vulkan-x64.zip" }
+      cpu:    { file: "master-782-b290693/sd-master-b290693-bin-win-cpu-x64.zip" }
+    linux-x64:
+      cuda:   { file: "TODO(ENG-01): release linux cuda", note: "ULS compila do fonte quando não há prebuilt; ver scripts/build/build_from_source.sh" }
+      vulkan: { file: "TODO(ENG-01)" }
+      cpu:    { file: "TODO(ENG-01)" }
+    mac-arm64:
+      metal:  { file: "TODO(ENG-01): darwin arm64 metal (ULS: app/backend/mac/sd)" }
+
+whispercpp:
+  base: https://github.com/ggml-org/whisper.cpp/releases/download/{release}/
+  release: "TODO(AUD-01): fixar release"
+  keep: ["whisper-cli*", "whisper-server*", "*.dll", "*.so*", "*.dylib"]
+  exe: { win: whisper-cli.exe, linux: whisper-cli, mac: whisper-cli }
+  builds:
+    win-x64: { cpu: { file: "whisper-bin-x64.zip" }, cuda: { file: "whisper-cublas-12.4.0-bin-x64.zip" } }
+    linux-x64: { cpu: { file: "TODO" } }
+    mac-arm64: { metal: { file: "TODO" } }
+
+ffmpeg:
+  keep: ["ffmpeg*", "ffprobe*"]
+  exe: { win: ffmpeg.exe, linux: ffmpeg, mac: ffmpeg }
+  builds:
+    win-x64:   { cpu: { file: "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" } }
+    linux-x64: { cpu: { file: "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz" } }
+    mac-arm64: { cpu: { file: "https://evermeet.cx/ffmpeg/getrelease/zip" } }
+
+sherpa-onnx:
+  # TTS (Piper VITS, Kokoro), VAD, diarização, RapidOCR-like; binários prebuilt por SO
+  base: https://github.com/k2-fsa/sherpa-onnx/releases/download/{release}/
+  release: "TODO(AUD-03): fixar release"
+  keep: ["bin/sherpa-onnx-offline-tts*", "bin/sherpa-onnx-offline-speaker-diarization*", "lib/*"]
+  builds:
+    win-x64:   { cpu: { file: "sherpa-onnx-{release}-win-x64-shared.tar.bz2" } }
+    linux-x64: { cpu: { file: "sherpa-onnx-{release}-linux-x64-shared.tar.bz2" } }
+    mac-arm64: { cpu: { file: "sherpa-onnx-{release}-osx-arm64-shared.tar.bz2" } }
+
+sqlite-ext:
+  # extensão sqlite-vec para node:sqlite (DOC-00)
+  base: https://github.com/asg017/sqlite-vec/releases/download/{release}/
+  release: "TODO(DOC-00): fixar release"
+  builds:
+    win-x64:   { cpu: { file: "sqlite-vec-{release}-loadable-windows-x86_64.tar.gz" } }
+    linux-x64: { cpu: { file: "sqlite-vec-{release}-loadable-linux-x86_64.tar.gz" } }
+    mac-arm64: { cpu: { file: "sqlite-vec-{release}-loadable-macos-aarch64.tar.gz" } }
+
+uv:
+  # gerenciador Python portátil (AUD-10)
+  base: https://github.com/astral-sh/uv/releases/latest/download/
+  builds:
+    win-x64:   { cpu: { file: "uv-x86_64-pc-windows-msvc.zip" } }
+    linux-x64: { cpu: { file: "uv-x86_64-unknown-linux-gnu.tar.gz" } }
+    mac-arm64: { cpu: { file: "uv-aarch64-apple-darwin.tar.gz" } }
