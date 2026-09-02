@@ -112,8 +112,8 @@ async function resolveFrom(
     if (e) return { repo: from.repo, revision, entries: [e], quant: quantFromName(e.path), fits: true };
     // huge repos (piper-voices) can exceed what we page through: confirm the exact path with a HEAD
     const meta = await ctx.hf.fileMeta(from.repo, from.path, revision).catch(() => null);
-    if (meta && !meta.gatedDenied && meta.size) {
-      return { repo: from.repo, revision, entries: [{ type: "file", path: from.path, size: meta.size, lfs: meta.sha256 ? { oid: meta.sha256, size: meta.size } : undefined }], quant: quantFromName(from.path), fits: true };
+    if (meta && !meta.gatedDenied && meta.exists) {
+      return { repo: from.repo, revision, entries: [{ type: "file", path: from.path, size: meta.size ?? 0, lfs: meta.sha256 && meta.size ? { oid: meta.sha256, size: meta.size } : undefined }], quant: quantFromName(from.path), fits: true };
     }
     return tryAlt(`arquivo '${from.path}' não encontrado`);
   }

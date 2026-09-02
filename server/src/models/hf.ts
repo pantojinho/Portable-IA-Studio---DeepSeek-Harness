@@ -127,23 +127,28 @@ export class HfClient {
   }
 
   /** HEAD a file to learn its final size / redirect target without downloading. */
-  async fileMeta(repo: string, repoPath: string, revision = "main"): Promise<{ size: number | null; sha256: string | null; gatedDenied: boolean }> {
+  async fileMeta(repo: string, repoPath: string, revision = "main"): Promise<{ exists: boolean; size: number | null; sha256: string | null; gatedDenied: boolean }> {
     const url = this.fileUrl(repo, repoPath, revision);
-    const res = await fetch(url, { method: "HEAD", headers: this.headers(), redirect: "manual" });
-    if (res.status === 401 || res.status === 403) return { size: null, sha256: null, gatedDenied: true };
+    // identity: with gzip the server omits content-length and we would not learn the size
+    const h = this.headers({ "accept-encoding": "identity" });
+    const res = await fetch(url, { method: "HEAD", headers: h, redirect: "manual" });
+    if (res.status === 401 || res.status === 403) return { exists: false, size: null, sha256: null, gatedDenied: true };
+    if (res.status === 404) return { exists: false, size: null, sha256: null, gatedDenied: false };
     const linked = Number(res.headers.get("x-linked-size") ?? "") || null;
     const etag = (res.headers.get("x-linked-etag") ?? res.headers.get("etag") ?? "").replace(/"/g, "");
     // LFS files answer with X-Linked-Size on the redirect; small non-LFS files redirect without it,
     // and the redirect body's content-length is NOT the file size — follow to the real one.
     let size = linked;
+    let exists = res.ok || (res.status >= 300 && res.status < 400);
     if (!size) {
       if (res.status >= 300 && res.status < 400) {
-        const fin = await fetch(url, { method: "HEAD", headers: this.headers(), redirect: "follow" });
-        if (fin.status === 401 || fin.status === 403) return { size: null, sha256: null, gatedDenied: true };
+        const fin = await fetch(url, { method: "HEAD", headers: h, redirect: "follow" });
+        if (fin.status === 401 || fin.status === 403) return { exists: false, size: null, sha256: null, gatedDenied: true };
+        exists = fin.ok;
         size = Number(fin.headers.get("content-length") ?? "") || null;
       } else size = Number(res.headers.get("content-length") ?? "") || null;
     }
-    return { size, sha256: /^[0-9a-f]{64}$/.test(etag) ? etag : null, gatedDenied: false };
+    return { exists, size, sha256: /^[0-9a-f]{64}$/.test(etag) ? etag : null, gatedDenied: false };
   }
 }
 

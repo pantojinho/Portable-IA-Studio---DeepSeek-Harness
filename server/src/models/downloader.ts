@@ -68,7 +68,8 @@ export async function downloadFile(file: PlannedFile, destPath: string, opts: Do
   };
   report({ phase: "connecting" });
 
-  const headers: Record<string, string> = { "user-agent": "AI-Studio/0.1", accept: "*/*", ...(opts.headers ?? {}) };
+  // identity encoding: content-length must equal the bytes we count (gzip would break the size check)
+  const headers: Record<string, string> = { "user-agent": "AI-Studio/0.1", accept: "*/*", "accept-encoding": "identity", ...(opts.headers ?? {}) };
   if (offset > 0) headers.range = `bytes=${offset}-`;
 
   let res: Response;
