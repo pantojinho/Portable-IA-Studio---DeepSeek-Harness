@@ -59,7 +59,8 @@ describe("API — núcleo", () => {
     const cfg = await (await get("/api/v1/config")).json() as { config: { server: { apiKey: string | null } }; editable: string[] };
     expect(cfg.config.server.apiKey).toBeNull();
     expect(cfg.editable).toContain("engines.idleUnloadMinutes");
-  });
+    // /api/v1/system consulta wmic/nvidia-smi/df: nos runners do Windows isso passa de 5 s
+  }, 30_000);
 
   it("valida a configuração e recusa campos protegidos", async () => {
     const ok = await fetch(`${base}/api/v1/config`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ui: { theme: "dark" } }) });
