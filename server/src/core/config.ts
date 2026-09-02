@@ -185,7 +185,8 @@ export function applyConfigPatch(cfg: StudioConfig, patch: unknown): ConfigPatch
     let node = next as unknown as Record<string, unknown>;
     for (const p of parts.slice(0, -1)) node = node[p] as Record<string, unknown>;
     const last = parts.at(-1)!;
-    if (JSON.stringify(node[last]) === JSON.stringify(value)) continue;
+    const current = node[last] ?? null;
+    if (JSON.stringify(current) === JSON.stringify(value ?? null)) continue;   // undefined e null são o mesmo "sem valor"
     node[last] = value;
     changed.push(key);
     if (key === "server.port" || key === "agent.port" || key === "engines.preferredBackend") needsRestart.push(key);
