@@ -6,10 +6,7 @@ import { Hono } from "hono";
  */
 const PLANNED: [string, string][] = [
   ["/v1/images/edits", "ENG-07"],
-  ["/v1/audio/speech", "AUD-02"], ["/v1/audio/translations", "AUD-01"],
   ["/api/v1/generate/video", "VID-01"],
-  ["/api/v1/voices", "AUD-02"], ["/api/v1/meetings", "AUD-08"], ["/api/v1/audio/music", "AUD-09"],
-  ["/api/v1/projects", "DOC-01"], ["/api/v1/ocr", "DOC-03"], ["/api/v1/doctypes", "DOC-07"],
   ["/mcp", "AGT-04"],
 ];
 

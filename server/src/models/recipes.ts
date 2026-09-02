@@ -14,7 +14,11 @@ import type { FileRole } from "./types.js";
 export type RecipeStatus = "verified" | "community" | "draft" | "planned";
 
 export interface RecipeFileFrom {
-  repo: string;
+  /** direct download (voice packs on GitHub releases); mutually exclusive with `repo` */
+  url?: string;
+  sizeBytes?: number;
+  sha256?: string;
+  repo?: string;
   revision?: string;
   /** exact path in the repo */
   path?: string;
@@ -38,6 +42,8 @@ export interface RecipeFile {
   optional?: boolean;
   /** rename on disk (default: basename of repo path) */
   filename?: string;
+  /** MOD-08: the download is an archive; unpack it into models/<kind>/<subdir>/<name>/ */
+  extract?: boolean;
 }
 
 export interface Recipe {

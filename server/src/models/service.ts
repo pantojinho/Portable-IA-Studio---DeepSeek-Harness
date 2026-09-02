@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { StudioContext } from "../core/context.js";
+import { archiveBaseName, extractArchive, flattenSingleChild, isArchive } from "../core/archive.js";
 import type { JobInfo } from "../core/jobs.js";
 import { HfClient } from "./hf.js";
 import { RecipeStore } from "./recipes.js";
-import { ModelRegistry, writeSidecar } from "./registry.js";
+import { ModelRegistry, walk, writeSidecar } from "./registry.js";
 import { resolvePlan, fmtBytes } from "./resolver.js";
 import { downloadFile, DownloadError } from "./downloader.js";
 import { detectGpus } from "../core/system.js";
@@ -90,6 +91,24 @@ export class ModelService {
             fs.mkdirSync(path.dirname(better), { recursive: true });
             fs.renameSync(r.path, better); finalPath = better;
             job.log.info(`${f.filename}: reclassificado por conteúdo ${f.kind} → ${r.inspection.kind}`);
+          }
+          // MOD-08: a voice pack is an archive; unpack it and keep the folder, not the .tar.bz2
+          if (f.extract || isArchive(f.filename)) {
+            job.setMessage(`${label}: extraindo`);
+            const dir = path.join(path.dirname(finalPath), archiveBaseName(f.filename));
+            fs.rmSync(dir, { recursive: true, force: true });
+            extractArchive(finalPath, dir);
+            flattenSingleChild(dir);
+            fs.unlinkSync(finalPath);
+            const inside = [...walk(dir)];
+            fs.writeFileSync(path.join(dir, "aistudio.pack.json"), JSON.stringify({
+              ref: plan.ref, url: f.url, recipe: plan.recipeId ?? null, role: f.role,
+              extractedAt: new Date().toISOString(), files: inside.map((x) => path.relative(dir, x).split(path.sep).join("/")),
+            }, null, 2));
+            job.log.info(`${f.filename}: ${inside.length} arquivo(s) extraídos em ${dir}`);
+            results.push({ file: f.filename, path: dir, skipped: false });
+            doneBytes += f.sizeBytes ?? r.bytes;
+            continue;
           }
           writeSidecar(finalPath, {
             source: { ref: plan.ref, repo: f.repo, revision: f.revision, repoPath: f.repoPath, url: f.url, sha256: r.sha256 ?? undefined, license: plan.license, gated: plan.gated, downloadedAt: new Date().toISOString() },

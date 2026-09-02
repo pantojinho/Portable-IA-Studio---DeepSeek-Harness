@@ -1,0 +1,178 @@
+# Tipos de documento (DOC-07). Dados, não código: cada tipo diz o que extrair (JSON Schema) e
+# quais verificações rodar (nomes em server/src/documents/validators.ts).
+# Para criar um tipo novo, copie um bloco daqui para data/doctypes/<seu>.yaml — o Studio lê os dois lugares.
+version: 1
+doctypes:
+  - id: nfe
+    name: Nota Fiscal Eletrônica (NF-e)
+    description: Nota fiscal de mercadoria, modelo 55, com chave de 44 dígitos.
+    hints: ["nota fiscal eletrônica", "danfe", "chave de acesso", "protocolo de autorização", "/nfe\\b/", "natureza da operação"]
+    validators: [nfeKey, cnpj, cpf, itemsSum, dates, positiveAmounts, required]
+    crossCheck:
+      key: [numero]
+      compare: [valorTotal, dataEmissao, cnpjEmitente]
+    schema:
+      type: object
+      properties:
+        chaveAcesso: { type: string, description: "44 dígitos da chave de acesso" }
+        numero: { type: string, description: "número da nota" }
+        serie: { type: string }
+        dataEmissao: { type: string, description: "data de emissão como está no documento" }
+        naturezaOperacao: { type: string }
+        emitente: { type: string, description: "razão social do emitente" }
+        cnpjEmitente: { type: string }
+        destinatario: { type: string }
+        cnpjDestinatario: { type: string }
+        cpfDestinatario: { type: string }
+        valorTotal: { type: string, description: "valor total da nota" }
+        valorProdutos: { type: string }
+        valorFrete: { type: string }
+        icms: { type: string }
+        itens:
+          type: array
+          items:
+            type: object
+            properties:
+              descricao: { type: string }
+              quantidade: { type: string }
+              valorUnitario: { type: string }
+              valorTotal: { type: string }
+              ncm: { type: string }
+      required: [numero, valorTotal]
+
+  - id: nfse
+    name: Nota Fiscal de Serviço (NFS-e)
+    description: Nota de serviço municipal.
+    hints: ["nota fiscal de serviço", "nfs-e", "iss", "prestador de serviços", "tomador", "código do serviço"]
+    validators: [cnpj, cpf, dates, positiveAmounts, required]
+    crossCheck:
+      key: [numero]
+      compare: [valorTotal, dataEmissao, cnpjPrestador]
+    schema:
+      type: object
+      properties:
+        numero: { type: string }
+        codigoVerificacao: { type: string }
+        dataEmissao: { type: string }
+        prestador: { type: string }
+        cnpjPrestador: { type: string }
+        tomador: { type: string }
+        cnpjTomador: { type: string }
+        cpfTomador: { type: string }
+        discriminacao: { type: string, description: "descrição dos serviços" }
+        valorServicos: { type: string }
+        iss: { type: string }
+        valorLiquido: { type: string }
+        valorTotal: { type: string }
+      required: [numero, valorTotal]
+
+  - id: recibo
+    name: Recibo
+    hints: ["recibo", "recebi de", "importância de", "quantia de"]
+    validators: [cnpj, cpf, dates, positiveAmounts]
+    schema:
+      type: object
+      properties:
+        numero: { type: string }
+        data: { type: string }
+        pagador: { type: string }
+        recebedor: { type: string }
+        cnpj: { type: string }
+        cpf: { type: string }
+        referente: { type: string }
+        valorTotal: { type: string }
+      required: [valorTotal]
+
+  - id: boleto
+    name: Boleto bancário
+    hints: ["boleto", "linha digitável", "cedente", "sacado", "nosso número", "vencimento", "beneficiário"]
+    validators: [cnpj, cpf, dates, positiveAmounts]
+    crossCheck:
+      key: [nossoNumero]
+      compare: [valorTotal, dataVencimento]
+    schema:
+      type: object
+      properties:
+        linhaDigitavel: { type: string }
+        nossoNumero: { type: string }
+        beneficiario: { type: string }
+        cnpj: { type: string }
+        pagador: { type: string }
+        dataVencimento: { type: string }
+        dataEmissao: { type: string }
+        valorTotal: { type: string }
+        documento: { type: string }
+      required: [valorTotal]
+
+  - id: fatura
+    name: Fatura / Invoice
+    hints: ["fatura", "invoice", "vencimento", "total a pagar", "período de referência"]
+    validators: [cnpj, itemsSum, dates, positiveAmounts]
+    crossCheck:
+      key: [numero]
+      compare: [valorTotal, dataVencimento]
+    schema:
+      type: object
+      properties:
+        numero: { type: string }
+        fornecedor: { type: string }
+        cnpj: { type: string }
+        cliente: { type: string }
+        dataEmissao: { type: string }
+        dataVencimento: { type: string }
+        periodo: { type: string }
+        valorTotal: { type: string }
+        itens:
+          type: array
+          items:
+            type: object
+            properties:
+              descricao: { type: string }
+              quantidade: { type: string }
+              valorUnitario: { type: string }
+              valorTotal: { type: string }
+      required: [valorTotal]
+
+  - id: contrato
+    name: Contrato
+    hints: ["contrato", "cláusula", "contratante", "contratada", "foro da comarca", "rescisão"]
+    validators: [cnpj, cpf, dates]
+    schema:
+      type: object
+      properties:
+        objeto: { type: string, description: "objeto do contrato em uma frase" }
+        contratante: { type: string }
+        cnpjContratante: { type: string }
+        contratada: { type: string }
+        cnpjContratada: { type: string }
+        dataAssinatura: { type: string }
+        vigenciaInicio: { type: string }
+        vigenciaFim: { type: string }
+        valorTotal: { type: string }
+        formaPagamento: { type: string }
+        multaRescisao: { type: string }
+        foro: { type: string }
+
+  - id: extrato
+    name: Extrato bancário
+    hints: ["extrato", "saldo anterior", "lançamentos", "agência", "conta corrente", "saldo disponível"]
+    validators: [cnpj, cpf, dates]
+    schema:
+      type: object
+      properties:
+        banco: { type: string }
+        agencia: { type: string }
+        conta: { type: string }
+        titular: { type: string }
+        periodo: { type: string }
+        saldoInicial: { type: string }
+        saldoFinal: { type: string }
+        lancamentos:
+          type: array
+          items:
+            type: object
+            properties:
+              data: { type: string }
+              descricao: { type: string }
+              valor: { type: string }
+              tipo: { type: string, description: "crédito ou débito" }

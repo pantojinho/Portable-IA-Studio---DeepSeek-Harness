@@ -16,6 +16,8 @@ import { v1Routes } from "./routes/v1.js";
 import { imagesRoutes } from "./routes/images.js";
 import { audioRoutes } from "./routes/audio.js";
 import { agentRoutes } from "./routes/agent.js";
+import { projectsRoutes, memoryRoutes } from "./routes/projects.js";
+import { meetingsRoutes } from "./routes/meetings.js";
 
 const log = logger("http");
 
@@ -78,8 +80,17 @@ export function createApp(ctx: StudioContext): Hono {
   app.route("/api/v1/generate", img.native);
   app.route("/v1/images", img.openai);
   app.route("/api/v1/outputs", img.outputs);
-  app.route("/v1/audio", audioRoutes(ctx));
+  const audio = audioRoutes(ctx);
+  app.route("/v1/audio", audio.openai);
+  app.route("/api/v1/voices", audio.voices);
+  app.route("/api/v1/audio", audio.native);
   app.route("/api/v1/agent", agentRoutes(ctx));
+  const docs = projectsRoutes(ctx);
+  app.route("/api/v1/projects", docs.projects);
+  app.route("/api/v1/doctypes", docs.doctypes);
+  app.route("/api/v1/ocr", docs.ocr);
+  app.route("/api/v1/memory", memoryRoutes(ctx));
+  app.route("/api/v1/meetings", meetingsRoutes(ctx));
   app.route("/", plannedRoutes());
 
   app.get("/api/v1/jobs", (c) => {

@@ -27,6 +27,21 @@ export interface StudioConfig {
     hfMirror: string | null;
   };
   agent: { enabled: boolean; port: number; workspace?: string | null };
+  audio: {
+    /** voice id used when the caller does not name one */
+    defaultVoice: string | null;
+    /** whisper model id used by transcriptions and meetings */
+    sttModel: string | null;
+    /** meeting transcription window in seconds (AUD-08) */
+    meetingWindowSec: number;
+  };
+  documents: {
+    embeddingModel: string | null;
+    rerankModel: string | null;
+    ocrModel: string | null;
+    chunkTokens: number;
+    chunkOverlap: number;
+  };
   /** remote OpenAI-compatible providers; keys live in data/secrets/provider_<id> */
   providers?: Record<string, { baseURL: string; models: string[]; label?: string; headers?: Record<string, string>; enabled?: boolean }>;
 }
@@ -37,6 +52,8 @@ export const DEFAULT_CONFIG: StudioConfig = {
   engines: { idleUnloadMinutes: 10, preferredBackend: "auto", vramBudgetMiB: "auto" },
   downloads: { parallelFiles: 2, parallelChunks: 4, maxSpeedMiBps: null, hfMirror: null },
   agent: { enabled: true, port: 3080 },
+  audio: { defaultVoice: null, sttModel: null, meetingWindowSec: 25 },
+  documents: { embeddingModel: null, rerankModel: null, ocrModel: null, chunkTokens: 400, chunkOverlap: 60 },
 };
 
 function deepMerge<T>(base: T, patch: unknown): T {
@@ -108,6 +125,14 @@ export const EDITABLE: Record<string, Rule> = {
   "agent.enabled": { type: "boolean" },
   "agent.port": { type: "number", min: 1, max: 65535, int: true },
   "agent.workspace": { type: "string", nullable: true },
+  "audio.defaultVoice": { type: "string", nullable: true },
+  "audio.sttModel": { type: "string", nullable: true },
+  "audio.meetingWindowSec": { type: "number", min: 5, max: 300, int: true },
+  "documents.embeddingModel": { type: "string", nullable: true },
+  "documents.rerankModel": { type: "string", nullable: true },
+  "documents.ocrModel": { type: "string", nullable: true },
+  "documents.chunkTokens": { type: "number", min: 64, max: 4000, int: true },
+  "documents.chunkOverlap": { type: "number", min: 0, max: 1000, int: true },
 };
 
 function flatten(patch: unknown, prefix = "", out: Record<string, unknown> = {}): Record<string, unknown> {

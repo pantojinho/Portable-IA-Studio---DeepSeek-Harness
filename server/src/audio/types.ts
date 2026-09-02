@@ -36,7 +36,8 @@ export interface SttRequest {
   translateToEnglish?: boolean;
 }
 
-export interface TranscriptSegment { start: number; end: number; text: string; speaker?: string; confidence?: number }
+export interface TranscriptWord { word: string; start: number; end: number }
+export interface TranscriptSegment { start: number; end: number; text: string; speaker?: string; confidence?: number; words?: TranscriptWord[] }
 export interface Transcript { language: string; duration: number; segments: TranscriptSegment[]; text: string }
 
 export interface Meeting {

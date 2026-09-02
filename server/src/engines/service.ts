@@ -9,11 +9,12 @@ import { Supervisor } from "./supervisor.js";
 import { LlamaCppAdapter } from "./llamacpp.js";
 import { SdCppAdapter } from "./sdcpp.js";
 import { WhisperCppAdapter } from "./whispercpp.js";
+import { SherpaOnnxAdapter } from "./sherpaonnx.js";
 import type { EngineId, EngineInstance, EngineInstall } from "./types.js";
 import { logger } from "../core/log.js";
 
 const log = logger("engines");
-const ENGINE_IDS: EngineId[] = ["llamacpp", "sdcpp", "whispercpp"];
+const ENGINE_IDS: EngineId[] = ["llamacpp", "sdcpp", "whispercpp", "sherpa-onnx", "ffmpeg", "uv", "sqlite-ext"];
 
 /** Facade: which engines exist, which are installed, start a model, list instances. */
 export class EngineService {
@@ -28,6 +29,7 @@ export class EngineService {
     this.registry.register(new LlamaCppAdapter(ctx, this.installer, () => this.supervisor));
     this.registry.register(new SdCppAdapter(ctx, this.installer));
     this.registry.register(new WhisperCppAdapter(ctx, this.installer));
+    this.registry.register(new SherpaOnnxAdapter(ctx, this.installer));
   }
 
   async preferredBackend(): Promise<Backend> {
@@ -115,6 +117,7 @@ export class EngineService {
   engineFor(kind: ModelKind): EngineId {
     if (kind === "image" || kind === "video") return "sdcpp";
     if (kind === "speech") return "whispercpp";
+    if (kind === "tts") return "sherpa-onnx";
     return "llamacpp";
   }
 }
