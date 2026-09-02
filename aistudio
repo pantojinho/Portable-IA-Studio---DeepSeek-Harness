@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # AI Studio — launcher portátil para macOS e Linux.
-# Garante um Node.js portátil em runtime/node/<os>-<arch> e executa dist/server.cjs.
+#  1) garante um Node.js portátil em runtime/node/<so>-<arch>
+#  2) se faltar dist/server.cjs (clone do código-fonte), instala dependências e constrói
+#  3) executa dist/server.cjs
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NODE_VERSION="24.19.0"
@@ -17,6 +19,7 @@ esac
 TAG="$([ "$OS" = darwin ] && echo mac || echo linux)-$ARCH"
 NODE_DIR="$ROOT/runtime/node/$TAG"
 NODE_BIN="$NODE_DIR/bin/node"
+NPM_CLI="$NODE_DIR/lib/node_modules/npm/bin/npm-cli.js"
 
 if [ ! -x "$NODE_BIN" ]; then
   echo
@@ -35,7 +38,15 @@ if [ ! -x "$NODE_BIN" ]; then
 fi
 
 if [ ! -f "$ROOT/dist/server.cjs" ]; then
-  echo "  [ERRO] dist/server.cjs não encontrado. Em um checkout de código-fonte rode: npm install && npm run build"
-  exit 1
+  if [ ! -f "$ROOT/package.json" ]; then
+    echo "  [ERRO] dist/server.cjs não encontrado e não há package.json para construir."; exit 1
+  fi
+  echo
+  echo "  Primeira execução a partir do código-fonte: instalando dependências e construindo…"
+  [ -d "$ROOT/node_modules" ] || "$NODE_BIN" "$NPM_CLI" install --no-audit --no-fund --loglevel=error --prefix "$ROOT"
+  "$NODE_BIN" "$ROOT/scripts/build.mjs"
+  [ -f "$ROOT/dist/server.cjs" ] || { echo "  [ERRO] a construção não gerou dist/server.cjs."; exit 1; }
+  echo "  Pronto."
 fi
+
 exec "$NODE_BIN" "$ROOT/dist/server.cjs" "$@"

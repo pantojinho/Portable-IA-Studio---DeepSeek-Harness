@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Studio</title>
+<style>
+:root{color-scheme:light dark;--bg:#F5F7F9;--surface:#fff;--surface2:#EDF1F4;--ink:#152230;--muted:#4D5D6C;--line:#D5DDE4;--accent:#0F7C7A;--accent-ink:#0A5F5E;--accent-soft:#D9EFEE;--bad:#A63A2E;--bad-soft:#F7DFDB;--warn:#9A6A12;--warn-soft:#F6EBD2}
+@media (prefers-color-scheme:dark){:root{--bg:#0E151C;--surface:#151E27;--surface2:#1C2731;--ink:#E4EBF1;--muted:#9FB0BE;--line:#2A3641;--accent:#45B7B3;--accent-ink:#7ED3CF;--accent-soft:#163A3A;--bad:#E38A7E;--bad-soft:#3F1F1B;--warn:#E0B25A;--warn-soft:#3A2F14}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,"Segoe UI",sans-serif;display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+@media (max-width:760px){body{grid-template-columns:1fr}aside{position:sticky;top:0;z-index:2}}
+aside{background:var(--surface);border-right:1px solid var(--line);padding:16px 12px;display:flex;flex-direction:column;gap:4px}
+aside h1{font-size:18px;margin:4px 8px 12px;letter-spacing:-.02em}
+aside button{all:unset;cursor:pointer;padding:9px 12px;border-radius:6px;color:var(--muted)}
+aside button.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600}
+aside button:hover{color:var(--ink)}
+aside .mon{margin-top:auto;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;line-height:1.7}
+main{padding:24px;max-width:1100px;width:100%}
+section{display:none}section.on{display:block}
+h2{font-size:22px;margin:0 0 4px;letter-spacing:-.015em}.sub{color:var(--muted);margin:0 0 18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+input[type=text],textarea{width:100%}textarea{min-height:80px;resize:vertical}
+.row>input[type=text],.row>input[type=password]{width:auto;flex:1;min-width:120px}.row>select{max-width:100%;min-width:0}
+.btn{font:inherit;cursor:pointer;background:var(--accent);color:#fff;border:0;border-radius:6px;padding:9px 14px;font-weight:600}
+.btn.sec{background:var(--surface2);color:var(--ink);border:1px solid var(--line)}.btn.danger{background:var(--bad)}
+.btn:disabled{opacity:.5;cursor:default}
+.tag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:4px;background:var(--surface2);color:var(--muted);font-family:ui-monospace,Consolas,monospace}
+.tag.ok{background:var(--accent-soft);color:var(--accent-ink)}.tag.bad{background:var(--bad-soft);color:var(--bad)}.tag.warn{background:var(--warn-soft);color:var(--warn)}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.mono{font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.msgs{display:flex;flex-direction:column;gap:10px;min-height:200px;max-height:55vh;overflow:auto;padding:4px}
+.msg{padding:10px 14px;border-radius:8px;max-width:85%;white-space:pre-wrap}.msg.u{align-self:flex-end;background:var(--accent-soft)}.msg.a{align-self:flex-start;background:var(--surface2)}
+.gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}.gal img{width:100%;border-radius:6px;border:1px solid var(--line)}
+.bar{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+.jobs{font-size:13px}.jobs div{padding:4px 0;border-bottom:1px solid var(--line)}
+pre{background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:10px;overflow:auto;font-size:12.5px}
+.warn{color:var(--warn)}.err{color:var(--bad)}
+</style>
+</head>
+<body>
+<aside>
+  <h1>AI Studio</h1>
+  <button data-t="chat" class="on">Chat</button>
+  <button data-t="img">Imagens</button>
+  <button data-t="models">Modelos</button>
+  <button data-t="engines">Motores &amp; APIs</button>
+  <button data-t="agent">Agente</button>
+  <button data-t="jobs">Trabalhos</button>
+  <div class="mon" id="mon">…</div>
+</aside>
+<main>
+
+<section id="chat" class="on">
+  <h2>Chat</h2><p class="sub">Modelos locais sobem sozinhos na primeira mensagem. "provedor:modelo" usa a API remota.</p>
+  <div class="card">
+    <div class="row"><select id="chatModel"></select><button class="btn sec" onclick="loadModels()">↻</button><label><input type="checkbox" id="think"> mostrar raciocínio</label></div>
+  </div>
+  <div class="card"><div class="msgs" id="msgs"></div></div>
+  <div class="card"><div class="row"><textarea id="chatIn" placeholder="Escreva e pressione Ctrl+Enter"></textarea></div><div class="row" style="margin-top:8px"><button class="btn" id="sendBtn" onclick="send()">Enviar</button><button class="btn sec" onclick="document.getElementById('msgs').innerHTML='';hist=[]">Limpar</button></div></div>
+</section>
+
+<section id="img">
+  <h2>Imagens</h2><p class="sub">stable-diffusion.cpp. Modelos de vários arquivos (Flux, SD3.5, Z-Image) usam a receita automaticamente.</p>
+  <div class="card">
+    <div class="row"><select id="imgModel"></select></div>
+    <textarea id="prompt" placeholder="prompt"></textarea>
+    <input type="text" id="neg" placeholder="negativo (opcional)" style="margin-top:6px">
+    <div class="row" style="margin-top:8px">
+      <label>L <input type="number" id="w" value="768" style="width:80px"></label><label>A <input type="number" id="h" value="768" style="width:80px"></label>
+      <label>passos <input type="number" id="steps" value="20" style="width:70px"></label><label>cfg <input type="number" id="cfg" value="7" step="0.5" style="width:70px"></label>
+      <label>seed <input type="number" id="seed" placeholder="aleatório" style="width:120px"></label>
+      <button class="btn" onclick="genImg()">Gerar</button>
+    </div>
+    <div id="imgStatus" class="sub" style="margin:8px 0 0"></div>
+  </div>
+  <div class="card"><div class="row" style="justify-content:space-between"><b>Galeria</b><button class="btn sec" onclick="loadGallery()">↻</button></div><div class="gal" id="gal" style="margin-top:10px"></div></div>
+</section>
+
+<section id="models">
+  <h2>Modelos</h2><p class="sub">Cole qualquer link do Hugging Face ou CivitAI, um id "org/repo" ou "recipe:id". Nada é gravado sem passar pela inspeção de conteúdo e pelo hash.</p>
+  <div class="card">
+    <div class="row"><input type="text" id="ref" placeholder="https://huggingface.co/zai-org/GLM-OCR" style="flex:1"><button class="btn" onclick="resolveRef()">Ver plano</button></div>
+    <div id="plan" style="margin-top:10px"></div>
+  </div>
+  <div class="card"><div class="row" style="justify-content:space-between"><b>Receitas prontas</b><span class="sub" style="margin:0">status: verified · community · draft · planned</span></div><div id="recipes" style="margin-top:8px"></div></div>
+  <div class="card"><div class="row" style="justify-content:space-between"><b>Biblioteca</b><button class="btn sec" onclick="loadLibrary()">↻</button></div><div id="lib" style="margin-top:8px"></div></div>
+  <div class="card"><b>Instalação antiga (Uncensored-Local-Studio)</b><p class="sub">Encontra modelos já baixados e traz por hardlink, sem copiar nem apagar. Arquivos falsos (HTML) e downloads incompletos são só marcados.</p><div class="row"><button class="btn sec" onclick="migrateScan()">Procurar</button><button class="btn" id="migImport" onclick="migrateImport()" disabled>Importar os válidos</button></div><div id="mig" style="margin-top:8px"></div></div>
+  <div class="card"><b>Tokens</b><p class="sub">Necessários só para repositórios "gated" (FLUX.1-dev, SD3.5…). Guardados em data/secrets.</p><div class="row"><input type="password" id="hfTok" placeholder="Hugging Face token" style="flex:1"><button class="btn sec" onclick="saveTok()">Salvar</button><span id="tokState" class="tag"></span></div></div>
+</section>
+
+<section id="engines">
+  <h2>Motores &amp; APIs</h2><p class="sub">Binários por GPU ficam em engines/. Provedores remotos entram no mesmo /v1 como "provedor:modelo".</p>
+  <div class="card"><div class="row" style="justify-content:space-between"><b>Motores</b><div class="row"><button class="btn sec" onclick="adopt()">Adotar do ULS</button><button class="btn sec" onclick="stopAll()">Parar todos</button><button class="btn sec" onclick="loadEngines()">↻</button></div></div><div id="eng" style="margin-top:8px"></div></div>
+  <div class="card"><b>Provedores remotos</b><div id="prov" style="margin-top:8px"></div></div>
+  <div class="card"><b>Usar de outros programas</b><p class="sub">Qualquer cliente OpenAI funciona trocando a base URL. Sem chave em localhost; com <span class="mono">--api-key</span> use Authorization: Bearer.</p><pre id="apiEx"></pre></div>
+</section>
+
+<section id="agent">
+  <h2>Agente</h2><p class="sub">DeepSeek Harness embutido: código, terminal e arquivos, usando os modelos deste Studio (provedor "local") ou provedores com chave.</p>
+  <div class="card"><div class="row"><span id="agState" class="tag">…</span><button class="btn sec" id="agInstall" onclick="agentInstall()">Instalar dsh</button><button class="btn" id="agStart" onclick="agentStart()">Iniciar</button><button class="btn sec" onclick="agentStop()">Parar</button><a id="agOpen" class="btn sec" target="_blank" style="text-decoration:none;display:none">Abrir em nova aba</a></div><div id="agErr" class="err"></div></div>
+  <div class="card" style="padding:0;overflow:hidden;height:70vh"><iframe id="agFrame" style="width:100%;height:100%;border:0;display:none"></iframe><div id="agHint" class="sub" style="padding:16px">Inicie o agente para vê-lo aqui. Na primeira vez, em Settings → Models do dsh, o provedor "local" já aponta para este Studio.</div></div>
+</section>
+
+<section id="jobs"><h2>Trabalhos</h2><p class="sub">Downloads, gerações e instalações. Progresso em tempo real por SSE.</p><div class="card jobs" id="jobList"></div></section>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);const api=(p,o)=>fetch(p,o).then(async r=>{const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error?.message||j.error||r.statusText);return j});
+const fmt=n=>!n?"?":n>=1e9?(n/1e9).toFixed(2)+" GB":n>=1e6?Math.round(n/1e6)+" MB":Math.round(n/1e3)+" KB";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+document.querySelectorAll("aside button[data-t]").forEach(b=>b.onclick=()=>{document.querySelectorAll("aside button").forEach(x=>x.classList.remove("on"));b.classList.add("on");document.querySelectorAll("main section").forEach(s=>s.classList.toggle("on",s.id===b.dataset.t));if(b.dataset.t==="img")loadGallery();if(b.dataset.t==="engines")loadEngines();if(b.dataset.t==="models"){loadLibrary();loadRecipes();loadTok()}if(b.dataset.t==="agent")agentState()});
+// agent
+async function agentState(){const s=await api("/api/v1/agent");$("#agState").textContent=s.status+(s.version?" · dsh "+s.version:"");$("#agState").className="tag "+(s.status==="ready"?"ok":s.status==="error"?"bad":"");$("#agInstall").style.display=s.status==="not-installed"?"":"none";$("#agErr").textContent=s.error||"";if(s.status==="ready"&&s.url){$("#agFrame").src=s.url;$("#agFrame").style.display="";$("#agHint").style.display="none";$("#agOpen").href=s.url;$("#agOpen").style.display=""}else{$("#agFrame").style.display="none";$("#agHint").style.display=""}}
+async function agentInstall(){const r=await api("/api/v1/agent/install",{method:"POST"});document.querySelector('[data-t=jobs]').click();onJob(r.job.id,j=>{if(j.status==="done")agentState()})}
+async function agentStart(){$("#agState").textContent="iniciando…";try{await api("/api/v1/agent/start",{method:"POST"})}catch(e){$("#agErr").textContent=e.message}agentState()}
+async function agentStop(){await api("/api/v1/agent/stop",{method:"POST"});agentState()}
+es.addEventListener("agent.status",()=>{if($("#agent").classList.contains("on"))agentState()});
+
+// monitor
+async function mon(){try{const s=await api("/api/v1/system/live");const g=s.gpus[0];$("#mon").innerHTML=`CPU ${Math.round(s.cpuLoad*100)}%<br>RAM ${(s.ramUsedMiB/1024).toFixed(1)}/${(s.ramMiB/1024).toFixed(0)} GB${g?`<br>VRAM ${(g.vramUsedMiB/1024).toFixed(1)}/${(g.vramMiB/1024).toFixed(0)} GB<br><span style="font-size:11px">${esc(g.name)}</span>`:""}`}catch{}}mon();setInterval(mon,4000);
+
+// jobs via SSE
+const jobs={};const es=new EventSource("/api/v1/events?topics=job,engine.status,agent.status");
+es.addEventListener("job",e=>{const j=JSON.parse(e.data);jobs[j.id]=j;renderJobs();(jobHooks[j.id]||[]).forEach(f=>f(j))});
+es.addEventListener("engine.status",e=>{const s=JSON.parse(e.data);if($("#engines").classList.contains("on"))loadEngines()});
+const jobHooks={};function onJob(id,f){(jobHooks[id]=jobHooks[id]||[]).push(f)}
+function renderJobs(){const l=Object.values(jobs).sort((a,b)=>b.createdAt-a.createdAt);$("#jobList").innerHTML=l.map(j=>`<div><span class="tag ${j.status==="done"?"ok":j.status==="failed"?"bad":j.status==="running"?"warn":""}">${j.status}</span> <b>${esc(j.title)}</b> <span class="mono">${esc(j.message)}</span>${j.status==="running"?` <button class="btn sec" style="padding:2px 8px" onclick="api('/api/v1/jobs/${j.id}/cancel',{method:'POST'})">cancelar</button><div class="bar"><i style="width:${Math.max(0,j.progress*100)}%"></i></div>`:""}${j.error?`<div class="err">${esc(j.error)}</div>`:""}</div>`).join("")||"<span class='sub'>nenhum trabalho ainda</span>"}
+api("/api/v1/jobs").then(r=>{r.jobs.forEach(j=>jobs[j.id]=j);renderJobs()});
+
+// chat
+let hist=[];async function loadModels(){const r=await api("/v1/models");const sel=$("#chatModel");const cur=sel.value;sel.innerHTML=r.data.filter(m=>!m.meta||m.meta.kind==="text"||m.meta.kind==="ocr").map(m=>`<option value="${esc(m.id)}">${esc(m.id)}${m.owned_by!=="local"?" (API)":""}${r.running.includes(m.id)?" ● carregado":""}</option>`).join("")||"<option value=''>nenhum modelo — vá em Modelos</option>";if(cur)sel.value=cur;const im=$("#imgModel");const lib=await api("/api/v1/models?kind=image");im.innerHTML=lib.models.filter(m=>["main","diffusion"].includes(m.inspection.role)).map(m=>`<option value="${esc(m.id)}">${esc(m.filename)}${m.recipe?" (receita "+m.recipe.id+")":""}</option>`).join("")||"<option value=''>nenhum modelo de imagem</option>"}
+loadModels();
+function add(cls,t){const d=document.createElement("div");d.className="msg "+cls;d.textContent=t;$("#msgs").appendChild(d);$("#msgs").scrollTop=1e9;return d}
+async function send(){const t=$("#chatIn").value.trim();if(!t)return;const model=$("#chatModel").value;if(!model)return alert("escolha um modelo");$("#chatIn").value="";add("u",t);hist.push({role:"user",content:t});const a=add("a","…");$("#sendBtn").disabled=true;
+ try{const r=await fetch("/v1/chat/completions",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({model,messages:hist,stream:true})});if(!r.ok){const j=await r.json();throw new Error(j.error?.message||r.statusText)}
+ const rd=r.body.getReader(),dec=new TextDecoder();let buf="",out="",think="";a.textContent="";
+ for(;;){const{value,done}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let i;while((i=buf.indexOf("\n"))>=0){const line=buf.slice(0,i).trim();buf=buf.slice(i+1);if(!line.startsWith("data:"))continue;const d=line.slice(5).trim();if(d==="[DONE]")continue;try{const j=JSON.parse(d);const dl=j.choices?.[0]?.delta||{};if(dl.reasoning_content)think+=dl.reasoning_content;if(dl.content)out+=dl.content;a.textContent=($("#think").checked&&think?"〔"+think+"〕\n\n":"")+out;$("#msgs").scrollTop=1e9}catch{}}}
+ hist.push({role:"assistant",content:out})}catch(e){a.textContent="✘ "+e.message;a.classList.add("err")}$("#sendBtn").disabled=false;loadModels()}
+$("#chatIn").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.ctrlKey)send()});
+
+// images
+async function genImg(){const body={model:$("#imgModel").value||undefined,prompt:$("#prompt").value,negative:$("#neg").value||undefined,width:+$("#w").value,height:+$("#h").value,steps:+$("#steps").value,cfg:+$("#cfg").value,seed:$("#seed").value?+$("#seed").value:undefined};if(!body.prompt)return alert("escreva um prompt");
+ try{const r=await api("/api/v1/generate/image",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});$("#imgStatus").textContent="gerando…";onJob(r.job.id,j=>{$("#imgStatus").textContent=j.status==="done"?"pronto":j.status==="failed"?"✘ "+j.error:j.message;if(j.status==="done")loadGallery()})}catch(e){$("#imgStatus").textContent="✘ "+e.message}}
+async function loadGallery(){const r=await api("/api/v1/outputs");$("#gal").innerHTML=r.items.map(i=>`<div><a href="/api/v1/outputs/file?path=${encodeURIComponent(i.file)}" target="_blank"><img src="/api/v1/outputs/file?path=${encodeURIComponent(i.file)}" title="${esc(i.prompt)}"></a><div class="sub" style="font-size:12px;margin:2px 0">${esc((i.prompt||"").slice(0,60))}<br><span class="tag">${i.width}×${i.height} · ${i.steps} passos · ${Math.round((i.durationMs||0)/1000)} s</span></div></div>`).join("")||"<span class='sub'>nada ainda</span>"}
+
+// models
+let curPlan=null;async function resolveRef(){const ref=$("#ref").value.trim();if(!ref)return;$("#plan").innerHTML="<span class='sub'>consultando…</span>";try{const p=await api("/api/v1/models/resolve?ref="+encodeURIComponent(ref));curPlan=p;
+ $("#plan").innerHTML=`<b>${esc(p.title)}</b> <span class="tag">${p.provider}${p.recipeId?" · "+p.recipeId:""}</span> ${p.license?`<span class="tag">${esc(p.license)}</span>`:""} ${p.gated?'<span class="tag warn">gated</span>':""}<table><tr><th>arquivo</th><th>tipo</th><th>papel</th><th>tamanho</th></tr>${p.files.map(f=>`<tr><td class="mono">${esc(f.repoPath||f.filename)}${f.present?' <span class="tag ok">já existe</span>':""}</td><td>${f.kind}</td><td>${f.role}</td><td>${fmt(f.sizeBytes)}</td></tr>`).join("")}</table><div class="row" style="margin-top:8px"><b>total ${fmt(p.totalBytes)}</b><button class="btn" onclick="pull()">Baixar</button></div>${p.warnings.map(w=>`<div class="warn">! ${esc(w)}</div>`).join("")}${p.alternatives?.length?`<div class="sub" style="margin-top:6px">alternativas: ${p.alternatives.slice(0,8).map(a=>esc(a.label)).join(" · ")}</div>`:""}`}catch(e){$("#plan").innerHTML=`<div class="err">✘ ${esc(e.message)}</div>`}}
+async function pull(){if(!curPlan)return;const r=await api("/api/v1/models/pull",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({plan:curPlan})});document.querySelector('[data-t=jobs]').click();onJob(r.job.id,j=>{if(j.status==="done"){loadLibrary();loadModels()}})}
+async function loadRecipes(){const r=await api("/api/v1/models/recipes");$("#recipes").innerHTML=`<table>${r.recipes.map(x=>`<tr><td><b>${esc(x.name)}</b><br><span class="sub" style="font-size:12px">${esc(x.description||"")}</span></td><td>${x.kind}</td><td><span class="tag ${x.status==="verified"?"ok":x.status==="planned"?"bad":""}">${x.status}</span></td><td><button class="btn sec" onclick="$('#ref').value='recipe:${x.id}';resolveRef()">plano</button></td></tr>`).join("")}</table>`}
+async function loadLibrary(){const r=await api("/api/v1/models?refresh=1");$("#lib").innerHTML=r.models.length?`<table><tr><th>tipo</th><th>arquivo</th><th>arquitetura</th><th>tamanho</th><th></th></tr>${r.models.map(m=>`<tr><td>${m.kind}</td><td class="mono">${esc(m.id)}${m.inspection.role!=="main"?` <span class="tag">${m.inspection.role}</span>`:""}</td><td>${esc(m.inspection.arch||"")} ${esc(m.inspection.quant||"")}</td><td>${fmt(m.sizeBytes)}</td><td><button class="btn sec" onclick="delModel('${esc(m.id)}')">apagar</button></td></tr>`).join("")}</table>`:"<span class='sub'>biblioteca vazia</span>"}
+async function delModel(id){if(!confirm("Apagar "+id+" da biblioteca?"))return;await api("/api/v1/models?id="+encodeURIComponent(id),{method:"DELETE"});loadLibrary();loadModels()}
+let migOk=[];async function migrateScan(){const r=await api("/api/v1/models/migrate/scan");migOk=r.candidates.filter(c=>!c.problem&&c.suggestedKind).map(c=>c.path);$("#migImport").disabled=!migOk.length;$("#mig").innerHTML=r.candidates.length?`<div class="sub">fontes: ${r.sources.map(esc).join(", ")}</div><table>${r.candidates.map(c=>`<tr><td>${c.problem==="html"?'<span class="tag bad">HTML, não é modelo</span>':c.problem==="partial"?'<span class="tag bad">download incompleto</span>':c.problem?`<span class="tag">${c.problem}</span>`:`<span class="tag ok">${c.suggestedKind}${c.inspection.arch?" · "+c.inspection.arch:""}</span>`}</td><td class="mono">${esc(c.path)}</td><td>${fmt(c.sizeBytes)}</td></tr>`).join("")}</table>`:"<span class='sub'>nada encontrado</span>"}
+async function migrateImport(){const r=await api("/api/v1/models/migrate/import",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({paths:migOk})});alert(r.results.filter(x=>x.ok).length+" importado(s)");loadLibrary();loadModels()}
+async function loadTok(){const t=await api("/api/v1/models/tokens");$("#tokState").textContent=t.hf?"HF: salvo":"HF: nenhum"}
+async function saveTok(){await api("/api/v1/models/tokens",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({hf:$("#hfTok").value||null})});$("#hfTok").value="";loadTok()}
+
+// engines
+async function loadEngines(){const r=await api("/api/v1/engines");$("#eng").innerHTML=`<div class="sub">backend preferido: <b>${r.preferredBackend}</b></div><table>${r.engines.map(e=>`<tr><td><b>${e.id}</b></td><td>${e.installed.length?e.installed.map(i=>`<span class="tag ok">${i.backend}</span>`).join(" "):'<span class="tag">não instalado</span>'}</td><td>${e.installed.length?"":`<button class="btn sec" onclick="installEng('${e.id}')">instalar</button>`}</td></tr>`).join("")}</table>${r.instances.length?`<div style="margin-top:8px"><b>rodando</b><table>${r.instances.map(i=>`<tr><td class="mono">${esc(i.id)}</td><td><span class="tag ${i.status==="ready"?"ok":i.status==="error"?"bad":"warn"}">${i.status}</span></td><td>porta ${i.port??"—"} · ~${i.vramMiB} MiB</td><td><button class="btn sec" onclick="api('/api/v1/engines/instances/${encodeURIComponent(i.id)}/stop',{method:'POST'}).then(loadEngines)">parar</button></td></tr>`).join("")}</table></div>`:""}`;
+ const p=await api("/api/v1/engines/providers");$("#prov").innerHTML=`<table>${p.providers.map(x=>`<tr><td><b>${x.id}</b><br><span class="sub" style="font-size:12px">${esc(x.baseURL)}</span></td><td>${x.hasKey?'<span class="tag ok">chave salva</span>':'<span class="tag">sem chave</span>'}</td><td><div class="row"><input type="password" id="k-${x.id}" placeholder="API key" style="width:200px"><button class="btn sec" onclick="saveKey('${x.id}')">salvar</button></div></td></tr>`).join("")}</table>`;
+ const o=location.origin;$("#apiEx").textContent=`# Python\nfrom openai import OpenAI\nclient = OpenAI(base_url="${o}/v1", api_key="local")\nr = client.chat.completions.create(model="${$("#chatModel").value||"text/…"}", messages=[{"role":"user","content":"olá"}])\n\n# curl\ncurl ${o}/v1/chat/completions -H "content-type: application/json" -d '{"model":"…","messages":[{"role":"user","content":"olá"}]}'\ncurl ${o}/v1/images/generations -H "content-type: application/json" -d '{"prompt":"uma maçã","size":"512x512"}'\n\n# remoto pelo mesmo endpoint: model = "openai:gpt-5-mini" | "deepseek:deepseek-chat" | "anthropic:claude-sonnet-5"`}
+async function saveKey(id){const v=$("#k-"+id).value;await api("/api/v1/engines/providers/"+id+"/key",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({key:v||null})});loadEngines();loadModels()}
+async function installEng(id){const r=await api("/api/v1/engines/"+id+"/install",{method:"POST"});document.querySelector('[data-t=jobs]').click();onJob(r.job.id,j=>{if(j.status==="done")loadEngines()})}
+async function adopt(){const r=await api("/api/v1/engines/adopt",{method:"POST"});alert(r.adopted.length+" motor(es) adotado(s)");loadEngines()}
+async function stopAll(){await api("/api/v1/engines/stop-all",{method:"POST"});loadEngines()}
+</script>
+</body>
+</html>

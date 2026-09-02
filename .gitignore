@@ -1,6 +1,8 @@
-# build output
-dist/
+# build output (o bundle é gerado por `npm run build`; os launchers constroem sozinhos se faltar)
+/dist/
 node_modules/
+# web/dist/index.html é FONTE (UI escrita à mão, sem build) e fica versionado;
+# só os artefatos do Vite (fase UI-01) são ignorados
 web/dist/assets/
 
 # portable runtime, engines and models live next to the app but are not source
