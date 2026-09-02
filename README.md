@@ -13,7 +13,11 @@ e [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness).
 |---|---|
 | 0 · Fundação portátil (launchers, Node portátil, servidor único, jobs, SSE, doctor) | **pronto** |
 | 1 · Gerenciador de modelos (cole um link → plano → download validado → biblioteca) | **pronto** |
-| 2 · Motores texto/imagem + `/v1` · 3 · Áudio · 4 · Documentos · 5 · UI · 6 · Agente/serviço | backlog em [`docs/SPRINTS.md`](docs/SPRINTS.md) |
+| 2 · Motores: llama.cpp e stable-diffusion.cpp servindo `/v1` (chat com stream, embeddings, imagens) + provedores remotos por `provedor:modelo` | **pronto (mínimo)** |
+| UI mínima: Chat · Imagens · Modelos · Motores & APIs · Trabalhos | **pronto (mínimo)** |
+| Transcrição `/v1/audio/transcriptions` (whisper.cpp, WAV 16 kHz) | **pronto (mínimo)** |
+| Agente de código (DeepSeek Harness embutido) | código pronto, instalação do dsh em validação |
+| 3 · Áudio completo · 4 · Documentos/OCR/RAG · 5 · UI React · 6 · Serviço/release | backlog em [`docs/SPRINTS.md`](docs/SPRINTS.md) |
 
 O bug de download do projeto original (página HTML salva como modelo) está resolvido na raiz:
 nada entra na biblioteca sem passar pela inspeção de bytes e pela verificação de hash.
@@ -33,7 +37,14 @@ A interface abre em `http://127.0.0.1:1420` (por enquanto uma página de status;
 aistudio serve [--host 0.0.0.0] [--port N] [--no-open] [--api-key K] [--data-dir D]
 aistudio doctor
 aistudio models list | resolve <link> | pull <link> | inspect <arquivo> | recipes | migrate [--import] | token hf <TOKEN>
+aistudio engines list | adopt | install <motor> | start <modelo>
+aistudio providers list | key <id> <CHAVE>
+aistudio run "pergunta" [--model id]
+aistudio agent install | start | run "tarefa"
 ```
+
+Primeira vez numa máquina que já tinha o Uncensored-Local-Studio ao lado: `aistudio engines adopt` e
+`aistudio models migrate --import` reaproveitam binários e modelos por hardlink (nada é copiado nem apagado).
 
 Exemplos que já funcionam:
 

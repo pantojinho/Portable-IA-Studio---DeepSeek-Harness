@@ -24,7 +24,7 @@ export interface StudioConfig {
     maxSpeedMiBps: number | null;
     hfMirror: string | null;
   };
-  agent: { enabled: boolean; port: number };
+  agent: { enabled: boolean; port: number; workspace?: string | null };
   /** remote OpenAI-compatible providers; keys live in data/secrets/provider_<id> */
   providers?: Record<string, { baseURL: string; models: string[]; label?: string; headers?: Record<string, string>; enabled?: boolean }>;
 }

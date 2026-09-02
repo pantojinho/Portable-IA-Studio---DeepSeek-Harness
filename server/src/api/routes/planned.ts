@@ -10,7 +10,7 @@ const PLANNED: [string, string][] = [
   ["/api/v1/generate/video", "VID-01"],
   ["/api/v1/voices", "AUD-02"], ["/api/v1/meetings", "AUD-08"], ["/api/v1/audio/music", "AUD-09"],
   ["/api/v1/projects", "DOC-01"], ["/api/v1/ocr", "DOC-03"], ["/api/v1/doctypes", "DOC-07"],
-  ["/api/v1/agent", "AGT-01"], ["/mcp", "AGT-04"],
+  ["/mcp", "AGT-04"],
 ];
 
 export function plannedRoutes(): Hono {

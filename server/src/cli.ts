@@ -38,6 +38,7 @@ const HELP = `AI Studio ${VERSION}
   aistudio engines <list|adopt|install|start|stop-all>                 motores
   aistudio providers <list|key>                                        provedores remotos (via API)
   aistudio run "<pergunta>" [--model id]                               chat rápido
+  aistudio agent <status|install|start|stop|run "tarefa">              agente de código (DeepSeek Harness)
   aistudio service <install|uninstall|status>  rodar como serviço (SVC-01)
   aistudio --help
 `;
@@ -60,6 +61,7 @@ async function main(): Promise<void> {
     case "engines": { const { enginesCmd } = await import("./commands/engines.js"); return enginesCmd(ctx, rest, flags); }
     case "providers": { const { providersCmd } = await import("./commands/engines.js"); return providersCmd(ctx, rest); }
     case "run": { const { runCmd } = await import("./commands/engines.js"); return runCmd(ctx, rest, flags); }
+    case "agent": { const { agentCmd } = await import("./commands/agent.js"); return agentCmd(ctx, rest, flags); }
     default:
       console.error(`Comando desconhecido: ${cmd}\n`); console.log(HELP); process.exitCode = 1;
   }

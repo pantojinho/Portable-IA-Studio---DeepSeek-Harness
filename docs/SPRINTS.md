@@ -34,10 +34,21 @@ Aceite S1 (já cumprido): os 10 links de aceitação resolvem para planos corret
 
 ---
 
-## S2 · Motores: texto + imagem + `/v1`
+## S2 · Motores: texto + imagem + `/v1` — `done(2026-09-02)` na versão mínima
+
+Feito e testado na A1000: ENG-01 (catálogo + adoção do ULS por hardlink; download do catálogo escrito, não testado),
+ENG-02 (supervisor: spawn, health, idle, orçamento VRAM LRU), ENG-04 (llama.cpp: chat/embeddings/rerank/mmproj),
+ENG-05 em modo cli (sd-cli; sd-server fica como ENG-05b), ENG-06/07/08 (`/v1/chat/completions` stream, `/v1/completions`,
+`/v1/embeddings`, `/v1/rerank`, `/v1/images/generations`), ENG-09 (rotas/CLI de motores), ENG-10 (galeria mínima),
+ENG-11 (adoção). Provedores remotos por `provedor:modelo` (openai, anthropic, deepseek, openrouter, groq, ollama).
+Pendências desta sprint viram tarefas abaixo (mantidas para detalhamento/hardening).
 
 | ID | Tarefa | Tam | Deps |
 |---|---|---|---|
+| ENG-05b | `sd-server` persistente (evita recarregar o checkpoint a cada imagem), `/v1/images/edits`, upscale (`--mode upscale` + ESRGAN), LoRA por `--lora-model-dir` + `<lora:nome:peso>` no prompt | M | done ENG-05 |
+| ENG-03b | Planejador contar VRAM do sd.cpp (hoje 0) e descarregar o LLM antes de modelos grandes de imagem; medir com `nvidia-smi` | S | — |
+| ENG-01b | Testar `install` do catálogo em máquina limpa (sem ULS) para llama.cpp e sd.cpp nos 3 SO; preencher hashes | M | — |
+| ENG-12 | Configurações por modelo persistidas (`data/model-settings.json`, como o ULS `llm-model-settings.json`): ctx, ngl, threads, cache | S | — |
 | ENG-01 | **Catálogo e instalador de motores.** `engines/catalog.yaml` (llama.cpp, sd.cpp, whisper.cpp, ffmpeg, onnxruntime por SO×GPU) + `engines/installer.ts`: baixa release oficial do GitHub, confere hash, extrai só `keep`, grava `engines/<id>/<os-arch>/<backend>/install.json`. Reuso: ULS `scripts/config/llm-backends.json`, `scripts/setup/setup-llama.ps1/.sh`, `setup-whisper.*`, `serve.cjs` L4886–4902 (URLs sd.cpp) e L4960–5110 (download+unzip de backend). Aceite: `aistudio engines install llamacpp` numa máquina limpa deixa `llama-server` executável; `doctor` lista. | M | — |
 | ENG-02 | **Supervisor de processos.** `engines/supervisor.ts`: spawn com `windowsHide`, captura de stdout/err em `data/logs/<engine>.log`, health polling, porta livre (`core/ports.ts`), descarga por inatividade (`config.engines.idleUnloadMinutes`), `engine.status` no bus, `stopAll` no SIGINT. Reuso: ULS `serve.cjs` L1857–1868 (porta), L2741 (health `/v1/models`), L4378 (spawn llama-server). Aceite: teste com processo fake (script node que abre porta) cobrindo start/health/idle/stop. | M | — |
 | ENG-03 | **Planejador de VRAM.** `engines/planner.ts`: estima VRAM por instância (GGUF: tamanho×1.1 + KV(ctx); sd.cpp: tamanho dos arquivos + margem por resolução), soma instâncias vivas, decide descarga LRU. Entrada `config.engines.vramBudgetMiB`. Aceite: testes de tabela (6 GB: Qwen3-4B Q4 + SD1.5 cabem; + Flux.2 não). | S | ENG-02 |
@@ -59,7 +70,8 @@ Aceite S2: `curl /v1/chat/completions` e `/v1/images/generations` funcionam; Ope
 | ID | Tarefa | Tam | Deps |
 |---|---|---|---|
 | AUD-10 | **Runner Python (uv).** `engines/python-venv.ts`: cria venv em `engines/python-venv/<pacote>/` com `uv` portátil (baixar binário do uv para `engines/uv/`), instala requisitos fixados, sobe um pequeno servidor HTTP (`python/<pacote>/server.py`) que fala o contrato `EngineAdapter.run`. Sem Python no sistema: `uv python install 3.12` dentro da pasta. Aceite: `aistudio engines install python:demo` roda um "eco". | M | ENG-01, ENG-02 |
-| AUD-01 | **STT whisper.cpp.** `engines/whispercpp.ts` (whisper-cli/whisper-server), VAD, timestamps por palavra, diarização com `tinydiarize` (modelo `-tdrz`) e/ou segmentação de falantes por sherpa-onnx, tradução. `/v1/audio/transcriptions` (multipart, `response_format` json/verbose_json/srt/vtt/text). Reuso: ULS `serve.cjs` L6149 (download), `SpeechTranscriber.jsx`, `scripts/setup/setup-whisper.*`. Aceite: transcrever 5 min de áudio PT-BR com falantes. | M | ENG-01, ENG-02 |
+| AUD-01a | `done(2026-09-02)`: whisper-cli por job, `POST /v1/audio/transcriptions` (json/text/srt/verbose_json), só WAV 16 kHz até AUD-07. | — | — |
+| AUD-01 | **STT whisper.cpp (completo).** `engines/whispercpp.ts` (whisper-cli/whisper-server), VAD, timestamps por palavra, diarização com `tinydiarize` (modelo `-tdrz`) e/ou segmentação de falantes por sherpa-onnx, tradução. `/v1/audio/transcriptions` (multipart, `response_format` json/verbose_json/srt/vtt/text). Reuso: ULS `serve.cjs` L6149 (download), `SpeechTranscriber.jsx`, `scripts/setup/setup-whisper.*`. Aceite: transcrever 5 min de áudio PT-BR com falantes. | M | ENG-01, ENG-02 |
 | AUD-02 | **Registro de vozes + `/v1/audio/speech`.** `audio/voices.ts` (voices/<id>/voice.json), `GET/POST/DELETE /api/v1/voices`, preview, voz padrão por idioma, `/v1/audio/speech` roteando pelo `Voice.engine`; formatos wav/mp3 (ffmpeg). | M | AUD-03 ou AUD-04 |
 | AUD-03 | **Piper (onnxruntime).** Executar vozes VITS do Piper: opção A `sherpa-onnx` (binários prebuilt em `engines/sherpa-onnx/`, CLI `sherpa-onnx-offline-tts`); opção B `piper` binário oficial. Escolher A (também cobre Kokoro, VAD, diarização). Voz pt-BR padrão: receita `piper-pt-br-faber`. Aceite: falar 2 frases em < 1 s na CPU. | M | ENG-01 |
 | AUD-04 | **Kokoro.** Pelo sherpa-onnx (kokoro-v1.0 int8 + voices.bin) ou portar `../Uncensored-Local-Studio-main/scripts/workers/tts-kokoro-worker.mjs` (kokoro-js) como *engine runtime* baixado sob demanda (não no bundle). Vozes PT-BR: pf_dora, pm_alex, pm_santa. | M | ENG-01 |
@@ -117,11 +129,12 @@ Design: instalar `npx impeccable install` no repo e rodar `/impeccable init` ant
 
 | ID | Tarefa | Tam | Deps |
 |---|---|---|---|
-| AGT-01 | Instalar `@deepseek-ai/dsh@<fixada>` em `agent/` com o npm do Node portátil (`runtime/node/*/npm`), offline-cache em `data/cache/npm`; `GET/POST /api/v1/agent(/install)`. | M | — |
-| AGT-02 | Gerar `agent/settings.yaml`: provedor `local` (baseURL do Studio, `compat.maxTokensField: max_tokens`, `supportsDeveloperRole: false`), provedores em nuvem opcionais com `apiKeyEnv` apontando para `data/secrets`, `mcpServers.studio → http://127.0.0.1:<porta>/mcp`. Ref: docs do dsh `docs/user/guide/providers.md`. | S | AGT-01 |
-| AGT-03 | Supervisor do dsh (`dsh web --port 3080 --no-open`, `DSH_HOME=agent/`), health, restart, embed na aba Agente (mesma origem via proxy `/agent/*` para evitar CORS). | M | AGT-01, ENG-02 |
+| AGT-01 | `done(2026-09-02)`: `aistudio agent install` usa **pnpm** (`npx pnpm@11 add`) — o npm levou >25 min sem terminar na árvore do dsh; pnpm resolve em ~1 min. Nativos (node-pty, koffi) via `onlyBuiltDependencies`. Pendente: testar em máquina sem Node no sistema (usar o npm/npx do runtime portátil). | — | — |
+| AGT-02 | `done(2026-09-02)` mínimo: `settings.yaml` com provedor `local` (baseURL do Studio, compat) e provedores com chave. Pendente: validar cada campo contra `config-catalog.md` do dsh; registrar o MCP do Studio (AGT-04). | S | — |
+| AGT-03 | `done(2026-09-02)` mínimo: `dsh web` supervisionado (`POST /api/v1/agent/start` → ready em ~10 s na máquina do dono), aba Agente na UI com iframe. Pendente: confirmar no dsh que o provedor `local` aparece e responde; proxy same-origin se o iframe bloquear. | M | — |
 | AGT-04 | **Servidor MCP do Studio** em `/mcp` (streamable HTTP, `@modelcontextprotocol/sdk` — verificar que não traz módulos nativos): `chat`, `generate_image`, `generate_video`, `speak`, `transcribe`, `ocr_file`, `list_models`, `download_model`. Ferramentas de projeto em DOC-10. | M | ENG-06, ENG-07 |
-| AGT-05 | `aistudio agent run "tarefa"` (headless) e `POST /api/v1/agent/run`; SDK Python do dsh documentado. | S | AGT-01 |
+| AGT-05 | `review`: `aistudio agent run "tarefa"` e `POST /api/v1/agent/run` escritos (headless); testar após AGT-01. SDK Python: documentar. | S | AGT-01 |
+| UI-00 | `done(2026-09-02)`: UI mínima sem build em `web/dist/index.html` (Chat com stream, Imagens + galeria, Modelos com plano/download/migração/tokens, Motores & APIs com provedores, Trabalhos por SSE). A S5 substitui por React mantendo as mesmas chamadas. | — | — |
 | VID-01 | Vídeo pelo sd.cpp `vid_gen` (Wan 2.2 5B, LTX-2): flags conforme `docs/wan.md` do sd.cpp, frames → mp4 via ffmpeg, `POST /api/v1/generate/video`. | M | ENG-05, AUD-07 |
 | API-01 | API keys (`--api-key`, várias chaves em `data/secrets/api_keys`), CORS, `--host`, rate-limit simples, logs de acesso. | S | — |
 | API-02 | Suíte de compatibilidade OpenAI com o SDK oficial (chat stream, images, audio, embeddings) rodando contra o Studio no CI (modelos pequenos). | M | ENG-06/07/08, AUD-01/02 |

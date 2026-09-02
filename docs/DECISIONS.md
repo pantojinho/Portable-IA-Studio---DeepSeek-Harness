@@ -3,6 +3,17 @@
 Formato: data · decisão · por quê · consequências. Adicione no topo. Mudar um contrato em
 `server/src/*/types.ts` exige uma entrada aqui.
 
+## 2026-09-02 · dsh é instalado com pnpm (via `npx pnpm@11`), não com npm
+Por quê: `npm install @deepseek-ai/dsh@0.1.1-rc.2` ficou >25 min a 3,6 GB de RAM resolvendo a árvore (60+ pacotes do workspace); pnpm resolveu em ~1 min. Nativos opcionais (node-pty, koffi) liberados por `pnpm.onlyBuiltDependencies` no `agent/package.json`.
+Consequência: a primeira instalação do agente exige internet e ~1–3 min; o cache fica em `data/cache/npm`.
+
+## 2026-09-02 · Motores adotados do ULS por hardlink antes de baixar
+Por quê: a máquina do dono já tinha 3 GB de binários validados; hardlink é instantâneo e não duplica disco.
+Consequência: `engines/<motor>/<os-arch>/<backend>/install.json` registra a origem (`uls:` ou `catalog:`); o catálogo continua sendo o caminho para máquinas limpas.
+
+## 2026-09-02 · sd.cpp em modo CLI primeiro; whisper idem
+Por quê: prova o caminho ponta a ponta (receitas, slots, saídas) sem gerir um servidor a mais; o custo é recarregar o checkpoint por imagem (ENG-05b resolve com sd-server).
+
 ## 2026-09-02 · Modelos gated ficam no plano com aviso, em vez de falhar
 Por quê: a UI precisa mostrar o plano e pedir o token; esconder o plano inteiro confundia.
 Consequência: `resolveFrom` tenta alternativas abertas primeiro (repacks Comfy-Org/city96), senão mantém o gated e avisa.

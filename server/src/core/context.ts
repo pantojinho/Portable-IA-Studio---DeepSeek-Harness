@@ -4,6 +4,7 @@ import { JobManager } from "./jobs.js";
 import type { ModelService } from "../models/service.js";
 import type { EngineService } from "../engines/service.js";
 import type { Providers } from "./providers.js";
+import type { AgentService } from "../agent/service.js";
 
 /** Everything a route, command or engine needs, passed explicitly (no globals). */
 export interface StudioContext {
@@ -15,6 +16,7 @@ export interface StudioContext {
   models: ModelService;
   engines: EngineService;
   providers: Providers;
+  agent: AgentService;
 }
 
 export async function createContext(paths: Paths, config: StudioConfig, version: string): Promise<StudioContext> {
@@ -26,5 +28,7 @@ export async function createContext(paths: Paths, config: StudioConfig, version:
   ctx.models = new ModelService(ctx);
   ctx.providers = new Providers(ctx);
   ctx.engines = new EngineService(ctx);
+  const { AgentService } = await import("../agent/service.js");
+  ctx.agent = new AgentService(ctx);
   return ctx;
 }
