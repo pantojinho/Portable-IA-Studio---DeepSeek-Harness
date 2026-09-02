@@ -25,6 +25,8 @@ export interface StudioConfig {
     hfMirror: string | null;
   };
   agent: { enabled: boolean; port: number };
+  /** remote OpenAI-compatible providers; keys live in data/secrets/provider_<id> */
+  providers?: Record<string, { baseURL: string; models: string[]; label?: string; headers?: Record<string, string>; enabled?: boolean }>;
 }
 
 export const DEFAULT_CONFIG: StudioConfig = {

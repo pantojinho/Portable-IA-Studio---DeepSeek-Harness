@@ -9,6 +9,9 @@ import { liveStats, systemInfo } from "../core/system.js";
 import { logger } from "../core/log.js";
 import { modelsRoutes } from "./routes/models.js";
 import { plannedRoutes } from "./routes/planned.js";
+import { enginesRoutes } from "./routes/engines.js";
+import { v1Routes } from "./routes/v1.js";
+import { imagesRoutes } from "./routes/images.js";
 
 const log = logger("http");
 
@@ -33,6 +36,12 @@ export function createApp(ctx: StudioContext): Hono {
   app.get("/api/v1/config", (c) => c.json(redactConfig(ctx)));
 
   app.route("/api/v1/models", modelsRoutes(ctx));
+  app.route("/api/v1/engines", enginesRoutes(ctx));
+  app.route("/v1", v1Routes(ctx));
+  const img = imagesRoutes(ctx);
+  app.route("/api/v1/generate", img.native);
+  app.route("/v1/images", img.openai);
+  app.route("/api/v1/outputs", img.outputs);
   app.route("/", plannedRoutes());
 
   app.get("/api/v1/jobs", (c) => c.json({ jobs: ctx.jobs.list() }));

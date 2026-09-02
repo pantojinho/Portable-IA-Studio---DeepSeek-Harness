@@ -34,8 +34,11 @@ const HELP = `AI Studio ${VERSION}
 
   aistudio serve   [--host H] [--port N] [--no-open] [--api-key K] [--data-dir D]
   aistudio doctor                      diagnóstico da máquina e da instalação
-  aistudio models  <list|pull|inspect> gerenciar modelos (fase 1)
-  aistudio service <install|uninstall|status>  rodar como serviço (fase 8)
+  aistudio models  <list|resolve|pull|inspect|recipes|migrate|token>   modelos
+  aistudio engines <list|adopt|install|start|stop-all>                 motores
+  aistudio providers <list|key>                                        provedores remotos (via API)
+  aistudio run "<pergunta>" [--model id]                               chat rápido
+  aistudio service <install|uninstall|status>  rodar como serviço (SVC-01)
   aistudio --help
 `;
 
@@ -54,6 +57,9 @@ async function main(): Promise<void> {
     case "serve": return serveCmd(ctx);
     case "doctor": return runDoctor(ctx);
     case "models": { const { modelsCmd } = await import("./commands/models.js"); return modelsCmd(ctx, rest, flags); }
+    case "engines": { const { enginesCmd } = await import("./commands/engines.js"); return enginesCmd(ctx, rest, flags); }
+    case "providers": { const { providersCmd } = await import("./commands/engines.js"); return providersCmd(ctx, rest); }
+    case "run": { const { runCmd } = await import("./commands/engines.js"); return runCmd(ctx, rest, flags); }
     default:
       console.error(`Comando desconhecido: ${cmd}\n`); console.log(HELP); process.exitCode = 1;
   }

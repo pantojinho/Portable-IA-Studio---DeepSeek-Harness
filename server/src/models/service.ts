@@ -22,7 +22,7 @@ export class ModelService {
   readonly hf: HfClient;
   readonly recipes: RecipeStore;
   readonly registry: ModelRegistry;
-  private vramMiB: number | null = null;
+  vramMiB: number | null = null;
 
   constructor(private ctx: StudioContext) {
     this.hf = new HfClient({ token: this.readSecret("hf_token"), mirror: ctx.config.downloads.hfMirror, cacheDir: ctx.paths.cache });
